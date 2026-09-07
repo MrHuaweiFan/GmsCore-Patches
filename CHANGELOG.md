@@ -1,3 +1,8 @@
+## [1.0.6](https://github.com/MrHuaweiFan/GmsCore-Patches/compare/v1.0.5...v1.0.6) (2026-09-07)
+
+### 🐛 Bug Fixes
+* Gmail crash ([6734d63](https://github.com/MrHuaweiFan/GmsCore-Patches/commit/6734d63542fa5bbce788e9d983a33c951b77ae65))
+
 ## [1.0.5](https://github.com/MrHuaweiFan/GMS-Patches/compare/v1.0.4...v1.0.5) (2026-08-31)
 
 ### 🐛 Bug Fixes
