@@ -1,3 +1,8 @@
+## [1.0.7](https://github.com/MrHuaweiFan/GmsCore-Patches/compare/v1.0.6...v1.0.7) (2026-09-07)
+
+### Other Changes
+* Revise README for clarity and app status updates ([83d38e7](https://github.com/MrHuaweiFan/GmsCore-Patches/commit/83d38e7cc61f1b36555ad9f664f350cd505036d1))
+
 ## [1.0.6](https://github.com/MrHuaweiFan/GmsCore-Patches/compare/v1.0.5...v1.0.6) (2026-09-07)
 
 ### 🐛 Bug Fixes
