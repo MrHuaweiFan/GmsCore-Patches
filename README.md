@@ -7,12 +7,7 @@
 [![Android](https://img.shields.io/badge/Platform-Android-3DDC84?style=flat-square&logo=android)](https://android.com)
 [![Apps](https://img.shields.io/badge/Google%20Apps-6%20patched-success?style=flat-square)](#google-apps-patches)
 
-This is a fork of [De-Vanced](https://github.com/RookieEnough/De-Vanced) focused on a single goal:
-making Google's own apps run against [microG](https://microg.org) instead of Google Play Services.
-It contains exactly six user-facing patches — GmsCore support for Gmail, Drive, Maps, Docs,
-Sheets and Slides — modeled on the battle-tested Google Photos GmsCore patch from De-Vanced.
-Everything else from upstream was removed; the Google Photos patch itself lives on in the
-upstream repo if you need it.
+This is a fork of [De-Vanced](https://github.com/RookieEnough/De-Vanced) focused on making various Google apps run against [microG](https://microg.org) instead of Google Play Services.
 
 ---
 
@@ -20,10 +15,10 @@ upstream repo if you need it.
 
 | App | State |
 | :--- | :--- |
-| Gmail | ✅ Launch, login and account working |
+| Gmail | ✅ Launch and account working |
 | Google Drive | ✅ Launch and account working |
 | Google Docs / Sheets / Slides | ✅ Launch and account working; the suite keeps resolving its own apps after the rename |
-| Google Maps | ⚠️ Launch, account and routing work; the map view stays blank (microG does not implement the proprietary tiles modules — an ecosystem limit, not a patch bug) |
+| Google Maps | ✅ Launch and account working |
 
 Patch support is **pinned to the exact app versions listed below** — other versions fail by
 design, because the fingerprints depend on obfuscated class names that change with every
