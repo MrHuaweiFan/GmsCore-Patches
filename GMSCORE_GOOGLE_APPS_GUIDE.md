@@ -14,7 +14,7 @@
 
 ```
 patches/src/main/kotlin/app/morphe/
-  patches/{gmail,gdrive,gmaps,gdocs,gsheets,gslides}/
+  patches/{gmail,gdrive,gmaps,gdocs,gsheets,gslides,googleapp,gemini}/
       misc/gms/{Constants.kt, Fingerprints.kt, GmsCoreSupportPatch.kt}   per-app patch
       misc/extension/SharedExtensionPatch.kt                              activity hook
   patches/shared/misc/gms/GmsCoreSupportPatch.kt    the engine (bytecode + resource patch)
@@ -27,7 +27,8 @@ archive/                                              preserved upstream sources
 patches-list.json / patches-bundle.json               GENERATED files (CI rewrites them)
 ```
 
-Six user-facing patches: Gmail, Drive, Maps, Docs, Sheets, Slides. Each app patch is
+Eight user-facing patches: Gmail, Drive, Maps, Docs, Sheets, Slides, Google app,
+Gemini. Each app patch is
 `gmsCoreSupportPatch(...)` (bytecode) plus a `gmsCoreSupportResourcePatch(...)` factory
 (resource) plus an extension hook into the launcher activity's `onCreate`.
 
@@ -54,9 +55,12 @@ Per-app behavior is selected through these parameters:
 | :--- | :--- | :--- | :--- |
 | Default | all flags off | Maps | Rename package, authorities, c2dm strings to the vendor; DEX references follow the manifest. |
 | Legacy identity | `keepOriginalPackageScopedNames = true` | **Gmail** | Keep every self-package-scoped name original (provider authorities, own C2D_MESSAGE permission), keep c2dm *actions* literal, retarget only sync-adapter account types, strip the receiver permission guard. See failure mode F3. |
-| Self-rewrite | `rewriteSelfPackageNameStrings = true` | Drive/Docs/Sheets/Slides | Also rewrite the app's own exact package string, self-targeted `content://` URIs and own C2D permission in DEX. See failure mode F4. |
+| Self-rewrite | `rewriteSelfPackageNameStrings = true` | Drive/Docs/Sheets/Slides, **Google app, Gemini** | Also rewrite the app's own exact package string, self-targeted `content://` URIs and own C2D permission in DEX. See failure mode F4. |
 | Cross-app | `crossAppPackageRenames` / `crossAppContentUriRenames` = the shared Drive-suite maps | Drive/Docs/Sheets/Slides | Exact-match renames of sibling suite package names and the Drive storage authorities so the four renamed apps keep resolving each other. Requires default `app.morphe.*` target names. |
-| Shortcut hardening | `hardenShortcutCharStrings = true` | **Gmail** | Inline the hardware-keyboard shortcut trigger characters into res/menu and re-assert their string values. See failure mode F7. |
+| Cross-app (v1.1.0) | `GOOGLE_APP_CROSS_APP_RENAMES` / `GEMINI_CROSS_APP_RENAMES` | **Google app, Gemini** | The Drive-suite maps plus the Google-app↔Gemini pair, so the two renamed apps keep resolving each other (Gemini probes the Google app's version; the Google app hands Assistant traffic to bard). Requires default `app.morphe.*` target names. |
+| Fingerprint overrides (v1.1.0) | `serviceCheckFingerprint` / `googlePlayUtilityFingerprint` | **Gemini** (serviceCheck = null, GPU = custom) | Per-app replacement of the two shared GMS-utility hooks for apps whose bundled GMS code has a different shape. See the section “The v1.1.0 additions” below. |
+| Install floor (v1.1.0) | `forceMinSdkVersion = 29` | **Google app** | Rewrites the decoded manifest's `android:minSdkVersion` so the APK installs on devices below the declared minimum. Install gate only — not an API backport. |
+| Shortcut hardening | `hardenShortcutCharStrings = true` | **Gmail** | Inline the hardware-keyboard shortcut trigger characters into the res menu XML files and re-assert their string values. See failure mode F7. |
 
 **Bind actions stay LITERAL** (`Constants.ACTIONS` is empty, deliberately — see failure
 mode F1). Accounts are retargeted by rewriting the account-type string `com.google` →
@@ -78,22 +82,30 @@ resolution — confirmed on device.
 | Docs | 1.26.341.02.90 (220701916) | `NewMainProxyActivity` **(alias)** | `Lcom/google/android/apps/docs/editors/homescreen/ProxyLaunchActivity;` (direct `onCreate`) | `24bb24c05e47e0aefa68a58a766179d9b613a600` |
 | Sheets | 1.26.341.01.90 (220702133) | `NewMainProxyActivity` **(alias)** | `Lcom/google/android/apps/docs/editors/homescreen/ProxyLaunchActivity;` (direct `onCreate`) | `24bb24c05e47e0aefa68a58a766179d9b613a600` |
 | Slides | 1.26.341.01.90 (220702177) | `NewMainProxyActivity` **(alias)** | `Lcom/google/android/apps/docs/editors/homescreen/ProxyLaunchActivity;` (direct `onCreate`) | `24bb24c05e47e0aefa68a58a766179d9b613a600` |
+| Google app | 17.61.20.ve.arm64 (301812194) | `SearchActivity` **(alias)** | `Lcom/google/android/apps/search/googleapp/activity/GoogleAppActivity;` (direct `onCreate`) | `38918a453d07199354f8b19af05ec6562ced5788` |
+| Gemini | 1.0.970490183 (338) | `BardEntryPointActivity` (direct activity) | `Lcom/google/android/apps/bard/shellapp/BardEntryPointActivity;` (direct `onCreate`) | `ec3549d92772531043b2dd2b85cd2469e75730af` |
 
 Key structural facts (all verified from the APKs):
 
-1. **Five of six launchers are `activity-alias` entries.** The manifest's launchable
+1. **Six of eight launchers are `activity-alias` entries.** The manifest's launchable
    name usually does not exist as a DEX class — the fingerprint must target the alias's
    `android:targetActivity` (or wherever that class's `onCreate` actually lives).
+   Gemini's `BardEntryPointActivity` is one of the two direct launchers (Maps is the
+   other, and Maps' `onCreate` lives on a superclass anyway).
 2. **Maps needs an obfuscated-superclass hook.** `MapsActivity` is a 1-method shell
    whose `onCreate(Bundle)V` is defined on `Lncu;` — an R8 artifact that WILL change
    between versions; re-verify when bumping.
-3. **Two signing keys are in play.** Gmail/Drive/Maps use the classic Google-wide
-   certificate (`38918a…`, CN=Android, O=Google Inc., valid 2008-2036). Docs/Sheets/
-   Slides use the newer Google LLC certificate (`24bb24…`, same key as Google Photos).
-   Never copy a signature hash between app families.
-4. **The shared engine's fingerprints resolve in all six APKs.** ServiceCheck was
-   found in every APK; the GooglePlayUtility string triple is present in
-   Gmail/Docs/Sheets/Slides and absent in Maps (handled gracefully — `methodOrNull`).
+3. **THREE signing keys are in play.** Gmail/Drive/Maps/Google app use the classic
+   Google-wide certificate (`38918a…`, CN=Android, O=Google Inc., valid 2008-2036).
+   Docs/Sheets/Slides use the newer Google LLC certificate (`24bb24…`, same key as
+   Google Photos). Gemini uses a THIRD key — same subject CN=Android, O=Google Inc.,
+   but issued 2024-01-23 and valid to 2054 (`ec3549…`). Never copy a signature hash
+   between app families.
+4. **The shared engine's fingerprints resolve in seven of the eight APKs.** ServiceCheck
+   was found in every APK except Gemini; the GooglePlayUtility string triple is present
+   in Gmail/Docs/Sheets/Slides and the Google app, absent in Maps (handled gracefully —
+   `methodOrNull`) and absent in the shared SHAPE in Gemini (instance method — handled
+   by the v1.1.0 per-app fingerprint override).
 5. **Gmail's launcher history**: `ConversationListActivityGmail` has been the public
    launcher name since the 2016 Material rewrite, `MailActivityGmail` its real target
    throughout — but the `onCreate` may move, so re-verify on version bumps.
@@ -103,6 +115,82 @@ Key structural facts (all verified from the APKs):
    hardware-keyboard shortcut dispatcher is `Lzmq;->aA(...)`. Both read the
    `trigger_*_char` string resources through `charAt(0)` — this is why Gmail (and only
    Gmail so far) needs shortcut hardening; see failure mode F7.
+
+## The v1.1.0 additions: Google app and Gemini
+
+Added 2026-09-26. Both patches are statically verified against their pinned APKs
+(base APKs extracted from APKCombo XAPK bundles; the Google app's base carries the
+arm64-v8a native libraries itself, so it is self-contained on ARM devices).
+On-device field testing under ReVanced GmsCore is still pending — expect the first
+logs to surface pre-hook GMS binds in the Application classes
+(`VelvetMultiprocessRoot_Application` for the Google app, `Bard_Application` for
+Gemini), which would be handled via `primeMethodFingerprint` / `earlyReturnFingerprints`
+the same way Gmail's were.
+
+**Google app 17.61.20.ve.arm64 (301812194), minSdk 32 → forced to 29.**
+
+- Launcher: `SearchActivity` alias → `GoogleAppActivity`
+  (`Lcom/google/android/apps/search/googleapp/activity/GoogleAppActivity;`, direct
+  public final `onCreate(Bundle)V`, 52 instructions, classes.dex).
+- Shared fingerprints both resolve: ServiceCheck `Ldaap;->d(Context;I)V` and
+  GooglePlayUtility `Ldaap;->b(Context;I)I`, both public static in classes2.dex.
+- Self-identity: the exact package string is a string-table entry in 12 of 14 dex
+  files → `rewriteSelfPackageNameStrings` (F4 pattern).
+- Authorities: 18 package-scoped provider authorities are renamed by the manifest
+  transform; of those, exactly ONE also appears as a bare DEX string —
+  `com.google.android.googlequicksearchbox.contextmenu.utilities.fileprovider`
+  (a FileProvider.getUriForFile authority argument) — renamed via
+  `GOOGLE_APP_CROSS_APP_RENAMES`. The other 17 are constructed at runtime from
+  getPackageName() or resources and follow automatically. Three provider-looking
+  strings in the DEX (`NetworkImageLoaderContentProvider`, `CommonContentProvider`,
+  `PublicValueProvider`) are NOT declared in the base manifest (split-bound or dead)
+  and are deliberately left alone.
+- Cross-app: 8 exact DEX references to the bard package (Gemini handoff), 7 to
+  `com.google.android.apps.docs` and 11 to `com.google.android.gm` (suite handoffs)
+  — all renamed via the shared maps.
+- minSdk 32 (Android 12L) is above the reference device's Android base → the
+  resource patch lowers the install floor to 29. This is an install gate change
+  only; if the app calls an API that genuinely needs 30/31/32, that will surface
+  as a runtime crash to be triaged from logs.
+
+**Gemini 1.0.970490183 (338), minSdk 29 (Android 10).**
+
+- Pinned to the Sep-7 build on purpose: the Sep-8 build (1.0.971139365) raised
+  minSdk to 32 and cannot install on the reference device at all.
+- Launcher: direct activity `BardEntryPointActivity`
+  (`Lcom/google/android/apps/bard/shellapp/BardEntryPointActivity;`, direct public
+  final `onCreate(Bundle)V`, classes2.dex).
+- Signature: the third Google key (`ec3549…`, subject CN=Android, O=Google Inc.,
+  issued 2024, valid to 2054) — NOT one of the two previously known keys.
+- **Shared ServiceCheck fingerprint does NOT resolve** (first app where it fails):
+  the only method referencing "Google Play Services not available" is
+  `Lbym;-><init>()V` — the constructor of an Exception subclass (a
+  GooglePlayServicesNotAvailableException stand-in). Early-returning a constructor
+  would corrupt exception semantics without disabling any availability gate.
+  → the patch passes `serviceCheckFingerprint = null` (v1.1.0 engine parameter).
+- **Shared GooglePlayUtility fingerprint does NOT resolve either**: the same string
+  triple lives in `Lbxs;->d(Landroid/content/Context;I)I` — a public FINAL INSTANCE
+  method of an R8-minified GooglePlayServicesUtil singleton (237 instructions
+  carrying the full "Google Play services out of date" / "requires Google Play
+  Store" string suite). → the patch overrides `googlePlayUtilityFingerprint` with
+  `GooglePlayServicesUtilAvailabilityFingerprint`, and the engine applies the same
+  `returnEarly(0)` (CONNECTION_OK) treatment it uses for the shared fingerprint.
+- Self-identity: 3 exact DEX references to the app's own package
+  (`getPackageInfo` self-lookups in the shell activities' onCreate) →
+  `rewriteSelfPackageNameStrings` (F4 pattern).
+- Cross-app: 7 methods probe `com.google.android.googlequicksearchbox` exactly
+  (version probe + Google-app deep-link routing in the launcher) → renamed via
+  `GEMINI_CROSS_APP_RENAMES` so the patched Gemini finds the patched Google app.
+  One exact reference each to docs and gm → covered by the reused Drive-suite map.
+
+**Cross-app symmetry note:** the renames are one-directional per app. The Google
+app resolves patched Gemini, patched Drive suite and patched Gmail; Gemini
+resolves the patched Google app and the suite. What is NOT covered: the six
+v1.0.x patches (Gmail, Drive, editors) do not yet rename the Google app's or
+Gemini's package names — so a patched Gmail's "open in Google app" style probes
+would miss the patched Google app. Adding those directions requires re-censusing
+the six pinned APKs first (the F5 procedure); do it only if field testing shows
+a concrete miss, not preemptively.
 
 ## How to re-verify and bump a version
 
@@ -411,8 +499,13 @@ The APKs used for verification were the current release-channel base APKs from A
 (apkcombo.com), fetched and analyzed automatically on 2026-08-30: Gmail
 2026.08.24.971409176.Release, Drive 2.26.347.3.all.alldpi, Maps 26.34.04.965633971,
 Docs 1.26.341.02.90, Sheets 1.26.341.01.90, Slides 1.26.341.01.90 (the v1.0.6 shortcut
-analysis re-fetched the same pinned Gmail APK on 2026-09-07). All are signed with APK
-Signature Scheme v2 by a single Google certificate (two distinct keys as noted above).
+analysis re-fetched the same pinned Gmail APK on 2026-09-07). The v1.1.0 additions were
+fetched and analyzed on 2026-09-26: Google app 17.61.20.ve.arm64 (base APK extracted
+from the arm64 XAPK bundle; the x86_64 standalone APK offered the same day is a
+different train AND lacks arm64-v8a native libraries, so it is NOT the pin) and Gemini
+1.0.970490183 (base APK extracted from its XAPK). All are signed with APK
+Signature Scheme v2 (v3 also present on the v1.1.0 pair) by a single Google certificate
+(three distinct keys as noted above).
 Google distributes these apps as split bundles; the analysis used the universal/base
 APK — the part a patcher consumes and the only part containing the manifest and signing
 block. When patching a device-pulled copy, verify it is the same release channel and a

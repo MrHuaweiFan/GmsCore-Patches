@@ -5,7 +5,7 @@
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![Kotlin](https://img.shields.io/badge/Kotlin-1.9+-7F52FF?style=flat-square&logo=kotlin)](https://kotlinlang.org)
 [![Android](https://img.shields.io/badge/Platform-Android-3DDC84?style=flat-square&logo=android)](https://android.com)
-[![Apps](https://img.shields.io/badge/Google%20Apps-6%20patched-success?style=flat-square)](#google-apps-patches)
+[![Apps](https://img.shields.io/badge/Google%20Apps-8%20patched-success?style=flat-square)](#google-apps-patches)
 
 This is a fork of [De-Vanced](https://github.com/RookieEnough/De-Vanced) focused on making various Google apps run against [microG](https://microg.org) instead of Google Play Services.
 
@@ -19,6 +19,8 @@ This is a fork of [De-Vanced](https://github.com/RookieEnough/De-Vanced) focused
 | Google Drive | ✅ Launch and account working |
 | Google Docs / Sheets / Slides | ✅ Launch and account working; the suite keeps resolving its own apps after the rename |
 | Google Maps | ✅ Launch and account working |
+| Google app (Search) | 🧪 Pinned and statically verified; on-device testing pending (installs with a lowered minSdk floor) |
+| Gemini | 🧪 Pinned and statically verified; on-device testing pending |
 
 Patch support is **pinned to the exact app versions listed below** — other versions fail by
 design, because the fingerprints depend on obfuscated class names that change with every
@@ -40,6 +42,8 @@ and GmsCore vendor lookups are rewired to the microG package.
 | Google Docs | `com.google.android.apps.docs.editors.docs` | 1.26.341.02.90 (220701916) | Google LLC (newer) |
 | Google Sheets | `com.google.android.apps.docs.editors.sheets` | 1.26.341.01.90 (220702133) | Google LLC (newer) |
 | Google Slides | `com.google.android.apps.docs.editors.slides` | 1.26.341.01.90 (220702177) | Google LLC (newer) |
+| Google app | `com.google.android.googlequicksearchbox` | 17.61.20.ve.arm64 (301812194) | Google Inc. classic |
+| Gemini | `com.google.android.apps.bard` | 1.0.970490183 (338) | Google Inc. 2024 key (third key) |
 
 Each app's patch set in Morphe Manager consists of **GmsCore support** (the main patch), its
 **Extension** dependency (injects the microG compatibility runtime), and the global
@@ -52,6 +56,19 @@ Two things worth knowing when picking package names:
   Keep the default `app.morphe.*` target package names for all four — a custom package name on
   any suite app desynchronizes the family (file open, editor hand-off, split view).
 - The patched Gmail cannot be installed alongside the genuine app; it is meant to replace it.
+- The Google app and Gemini reference each other (and the Drive family + Gmail) by exact package
+  name; keep their default `app.morphe.*` target names too, so the cross-app renames stay in sync.
+
+Two notes specific to the v1.1.0 additions:
+
+- The pinned Google app build declares Android 12L (SDK 32) as its minimum, so the patch lowers
+  the install floor to SDK 29 (`forceMinSdkVersion`). That un-blocks installation on EMUI-class
+  devices; it does not add missing platform APIs, so runtime issues on older devices remain a
+  crash-log matter.
+- The pinned Gemini build is the Sep-7 release, not the Sep-8 one: the newer build raised its
+  minimum to Android 12L and would not install on the reference device at all.
+- Both apps are distributed as XAPK bundles; patch the base APK inside (the Google app's base
+  already contains the arm64-v8a native libraries and is self-contained).
 
 ## Using the patches
 

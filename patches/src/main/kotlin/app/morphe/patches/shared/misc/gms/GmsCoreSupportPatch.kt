@@ -116,6 +116,47 @@ internal val DRIVE_SUITE_CONTENT_URI_RENAMES: Map<String, String> = mapOf(
 )
 
 /**
+ * v1.1.0: cross-app identity renames for the Google app (Google Search,
+ * com.google.android.googlequicksearchbox) and Gemini (com.google.android.apps.bard).
+ *
+ * The two apps reference each other by exact package name at runtime (Gemini's
+ * launcher probes the Google app's version via PackageManager.getPackageInfo and
+ * routes Google-app deep links; the Google app hands Assistant/Gemini traffic to
+ * the bard package). When both apps are patched and renamed, these exact-match
+ * renames keep each side resolving the other. Both maps deliberately reuse the
+ * Drive suite entries as well: the Google app references the Drive family and
+ * Gmail by exact package name (7 respectively 11 string-table entries in the
+ * pinned APK) for "open in Drive / send in Gmail" handoffs, and Gemini carries
+ * one exact reference to each.
+ *
+ * Same rules as the Drive suite maps: EXACT whole-string matches only, never
+ * dotted children. Verified against the full DEX string census of the pinned
+ * APKs (2026-09-26, Google 17.61.20.ve.arm64 / Gemini 1.0.970490183): zero keys
+ * collide with defined classes.
+ */
+internal val GOOGLE_APP_CROSS_APP_RENAMES: Map<String, String> = DRIVE_SUITE_CROSS_APP_RENAMES + mapOf(
+    // Gemini sibling (Assistant/Gemini handoff, 8 exact DEX references).
+    "com.google.android.apps.bard" to "app.morphe.android.apps.bard",
+    // The app's own FileProvider authority: the manifest rename turns it into
+    // "app.morphe.android.googlequicksearchbox.contextmenu.utilities.fileprovider",
+    // but a DEX constant (FileProvider.getUriForFile's authority argument) still
+    // references the original name. It is the ONLY package-scoped manifest
+    // authority of the 18 declared that also appears as a bare DEX string.
+    "com.google.android.googlequicksearchbox.contextmenu.utilities.fileprovider" to
+            "app.morphe.android.googlequicksearchbox.contextmenu.utilities.fileprovider",
+)
+
+/**
+ * v1.1.0: see [GOOGLE_APP_CROSS_APP_RENAMES]. Gemini additionally needs the
+ * Google app's exact package name renamed so its launcher version probe and
+ * Google-app deep-link routing find the patched (renamed) Google app.
+ */
+internal val GEMINI_CROSS_APP_RENAMES: Map<String, String> = DRIVE_SUITE_CROSS_APP_RENAMES + mapOf(
+    // Google app sibling (7 methods reference the exact package string).
+    "com.google.android.googlequicksearchbox" to "app.morphe.android.googlequicksearchbox",
+)
+
+/**
  * A patch that allows patched Google apps to run without root and under a different package name
  * by using GmsCore instead of Google Play Services.
  *
@@ -206,6 +247,22 @@ internal val DRIVE_SUITE_CONTENT_URI_RENAMES: Map<String, String> = mapOf(
  * cover all four apps; pass the SAME maps to every suite patch. Assumes default Morphe
  * target package names (do not override the package-name patch option for the suite
  * apps, or the cross references desync again).
+ * @param serviceCheckFingerprint v1.1.0: the GMS availability/error-dialog method to
+ * return early. Defaults to the shared [ServiceCheckFingerprint] (public static
+ * (L,I)V containing "Google Play Services not available"), which resolves in all
+ * six original apps AND the Google app (Ldaap;->d, classes2.dex). Gemini
+ * (com.google.android.apps.bard 1.0.970490183) is the first app whose DEX does NOT
+ * contain that shape: its bundled copy of the string lives only in the constructor
+ * of an Exception subclass (Lbym;), which is not an availability check and must not
+ * be neutered. Gemini therefore passes null to skip the hook entirely and relies on
+ * its GooglePlayUtility fingerprint override (its bundled R8-minified
+ * GooglePlayServicesUtil singleton Lbxs;->d returns 0 = "available" instead).
+ * @param googlePlayUtilityFingerprint v1.1.0: the GooglePlayServicesUtil-style
+ * availability method to return 0 from. Defaults to the shared
+ * [GooglePlayUtilityFingerprint]; absent methods are handled gracefully
+ * (methodOrNull, same as before). Gemini overrides it because its bundled util is
+ * an INSTANCE method (public final, not public static), so the shared fingerprint
+ * cannot resolve.
  * @param mainActivityOnCreateFingerprint The fingerprint of the main activity onCreate method.
  * @param extensionPatch The patch responsible for the extension.
  * @param executeBlock The additional execution block of the patch.
@@ -220,6 +277,8 @@ fun gmsCoreSupportPatch(
     rewriteSelfPackageNameStrings: Boolean = false,
     crossAppPackageRenames: Map<String, String> = emptyMap(),
     crossAppContentUriRenames: Map<String, String> = emptyMap(),
+    serviceCheckFingerprint: Fingerprint? = ServiceCheckFingerprint,
+    googlePlayUtilityFingerprint: Fingerprint? = GooglePlayUtilityFingerprint,
     mainActivityOnCreateFingerprint: Fingerprint,
     extensionPatch: Patch<*>,
     gmsCoreSupportResourcePatchFactory: () -> Patch<*>,
@@ -423,11 +482,14 @@ fun gmsCoreSupportPatch(
                 }
             }
         }
-        ServiceCheckFingerprint.method.returnEarly()
+
+        // v1.1.0: both hooks are per-app overridable (Gemini bundles neither
+        // static shape; see the parameter docs). Null skips the hook.
+        serviceCheckFingerprint?.let { it.method.returnEarly() }
 
         // Google Play Utility is not present in all apps, so we need to check if it's present.
-        if (GooglePlayUtilityFingerprint.methodOrNull != null) {
-            GooglePlayUtilityFingerprint.method.returnEarly(0)
+        googlePlayUtilityFingerprint?.let { fingerprint ->
+            fingerprint.methodOrNull?.let { it.returnEarly(0) }
         }
 
         // Set original and patched package names for extension to use.
@@ -632,6 +694,16 @@ private val SHORTCUT_CHAR_STRING_VALUES: Map<String, String> = mapOf(
  *      dispatcher (only pre-existing entries are rewritten; none are injected).
  * Only Gmail is known to consume string resources through `charAt(0)`, so the flag currently defaults
  * to false and is enabled from the Gmail patch only.
+ * @param forceMinSdkVersion v1.1.0: opt-in override that rewrites the decoded manifest's
+ * android:minSdkVersion to the given value. Needed when a pinned app version declares a higher
+ * install floor than the target devices actually run: Google app 17.61.20.ve.arm64 declares
+ * android:minSdkVersion="32" (Android 12L) while the reference field-test device (Huawei DBY-W09,
+ * EMUI) runs an older Android base, so without the rewrite PackageInstaller rejects the patched
+ * APK with INSTALL_FAILED_OLDER_SDK before anything else can even be tested. This is an install
+ * gate change ONLY -- it does not add missing platform APIs. If the app then calls an API that
+ * genuinely requires the newer platform level, that is a runtime issue to be diagnosed from
+ * crash logs, not something this rewrite can or should paper over. The rewrite is a defensive
+ * no-op when the decoded manifest carries no android:minSdkVersion attribute.
  * @param executeBlock The additional execution block of the patch.
  * @param block The additional block to build the patch.
  */
@@ -642,6 +714,7 @@ fun gmsCoreSupportResourcePatch(
     screen: BasePreferenceScreen.Screen,
     keepOriginalPackageScopedNames: Boolean = false,
     hardenShortcutCharStrings: Boolean = false,
+    forceMinSdkVersion: Int? = null,
     executeBlock: ResourcePatchContext.() -> Unit = {},
     block: ResourcePatchBuilder.() -> Unit = {},
 ) = resourcePatch {
@@ -761,6 +834,20 @@ fun gmsCoreSupportResourcePatch(
                     " android:permission=\"$fromPackageName.permission.C2D_MESSAGE\"",
                     "",
                 )
+            }
+
+            // v1.1.0: opt-in minimum-SDK override (see the forceMinSdkVersion parameter
+            // doc). Applied last so it also covers a manifest that the fold above
+            // already rewrote. Regex, because the decoded attribute value is a build
+            // detail and must not be assumed to stay "32" between versions.
+            forceMinSdkVersion?.let { minSdk ->
+                val minSdkPattern = Regex("android:minSdkVersion=\"\\d+\"")
+                if (minSdkPattern.containsMatchIn(manifestText)) {
+                    manifestText = minSdkPattern.replace(
+                        manifestText,
+                        "android:minSdkVersion=\"$minSdk\"",
+                    )
+                }
             }
 
             manifest.writeText(manifestText)

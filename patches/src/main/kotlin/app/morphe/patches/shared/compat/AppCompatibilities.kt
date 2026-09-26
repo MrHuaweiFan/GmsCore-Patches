@@ -34,6 +34,11 @@ internal object AppCompatibilities {
     //     adds a suite-wide cross-app identity rewrite so the four apps can
     //     keep resolving each other after all package names changed (file
     //     open via Drive's DocumentsProvider, editor hand-off, split view).
+    //   - Google app / Gemini: added v1.1.0, statically verified against the
+    //     pinned APKs (fingerprints, signature hashes, DEX string censuses);
+    //     on-device testing under ReVanced GmsCore still pending. The Google
+    //     app patch lowers its declared minSdkVersion (32) to 29 via
+    //     forceMinSdkVersion so it installs on the EMUI reference device.
 
     val GMAIL = Compatibility(
         name = "Gmail",
@@ -75,5 +80,29 @@ internal object AppCompatibilities {
         packageName = "com.google.android.apps.docs.editors.slides",
         appIconColor = 0xF4B400,
         targets = listOf(AppTarget("1.26.341.01.90")),
+    )
+
+    // Google app (Google Search), added v1.1.0. Pinned to the arm64 base APK
+    // extracted from APKCombo's XAPK bundle (2026-09-26); see the googleapp
+    // Constants.kt for the full provenance, including the minSdk 32 -> 29
+    // install-floor override this patch applies.
+    val GOOGLE_APP = Compatibility(
+        name = "Google",
+        packageName = "com.google.android.googlequicksearchbox",
+        appIconColor = 0x4285F4,
+        targets = listOf(AppTarget("17.61.20.ve.arm64")),
+    )
+
+    // Gemini, added v1.1.0. Pinned to the previous release-channel build
+    // (APKCombo, 2026-09-26) because the Sep-8 build raised minSdk to 32
+    // (Android 12L), which the reference EMUI device cannot install; this
+    // build declares Android 10 (29). See the gemini Constants.kt for the
+    // full provenance, including the absent shared fingerprints and their
+    // per-app overrides.
+    val GEMINI = Compatibility(
+        name = "Gemini",
+        packageName = "com.google.android.apps.bard",
+        appIconColor = 0x9B72CB,
+        targets = listOf(AppTarget("1.0.970490183")),
     )
 }
