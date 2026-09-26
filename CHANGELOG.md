@@ -1,3 +1,8 @@
+## [1.1.3](https://github.com/MrHuaweiFan/GmsCore-Patches/compare/v1.1.2...v1.1.3) (2026-09-26)
+
+### 🐛 Bug Fixes
+* rewrite stale self-component references after package rename ([4d528a3](https://github.com/MrHuaweiFan/GmsCore-Patches/commit/4d528a3e7129728c91a890e930adf4c8f159c923))
+
 ## [1.1.2](https://github.com/MrHuaweiFan/GmsCore-Patches/compare/v1.1.1...v1.1.2) (2026-09-26)
 
 ### 🐛 Bug Fixes
