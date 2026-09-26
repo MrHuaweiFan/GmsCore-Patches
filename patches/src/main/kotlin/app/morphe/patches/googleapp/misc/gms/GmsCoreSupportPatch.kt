@@ -52,6 +52,24 @@ import app.morphe.patches.shared.misc.settings.preference.PreferenceScreenPrefer
  *     paired hashCode constants; see the shared engine parameter doc for the
  *     full mechanism. All manifest android:process attributes are RELATIVE
  *     (":googleapp" etc.), so no manifest-side change is needed.
+ *
+ * v1.1.3 addition, field-derived from the v1.1.2 field report (both apps launch
+ * and mostly work; mic dead/crashing, some settings/menu deep-links dead):
+ *   - rewriteSelfComponentReferenceStrings is enabled because Velvet resolves
+ *     self-launches through FLATTENED INTENT URIS and SLASH-FORM ComponentName
+ *     strings that embed the ORIGINAL package name and therefore stop resolving
+ *     after the manifest rename (Intent.parseUri keeps the stale package;
+ *     ActivityNotFoundException is caught by some call sites and not others —
+ *     hence "silently does nothing" and "sometimes crashes"). Field-verified
+ *     matches in the 17.60.15 census: the flag-driven assistant/mic launch
+ *     intent (Lgtis;->a → component=<old>/OpaActivity + i.requested_mic_state=3),
+ *     the assistant settings deep-link
+ *     (Latra;->a / Lekxw;->a → package=<old>, assistant_settings_feature=...
+ *     — the settings screens the Gemini/Assistant UI's overflow menu items
+ *     open), the GsaVoiceInteractionService component (Lenhg;/Lenho;) and the
+ *     GsaNotificationListenerService component (Lafjw;). See the engine
+ *     parameter doc for the verified-safe exclusions (resource prefixes,
+ *     feature ids, dotted class names, actions, referrer labels).
  */
 @Suppress("unused")
 val gmsCoreSupportPatch = gmsCoreSupportPatch(
@@ -59,6 +77,7 @@ val gmsCoreSupportPatch = gmsCoreSupportPatch(
     toPackageName = MORPHE_GOOGLE_APP_PACKAGE_NAME,
     rewriteSelfPackageNameStrings = true,
     rewriteProcessNameStrings = true,
+    rewriteSelfComponentReferenceStrings = true,
     crossAppPackageRenames = GOOGLE_APP_CROSS_APP_RENAMES,
     crossAppContentUriRenames = DRIVE_SUITE_CONTENT_URI_RENAMES,
     mainActivityOnCreateFingerprint = HomeActivityOnCreateFingerprint,

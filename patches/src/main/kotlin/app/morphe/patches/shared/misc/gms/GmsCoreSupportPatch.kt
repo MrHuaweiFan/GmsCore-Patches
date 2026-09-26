@@ -245,6 +245,44 @@ internal val GEMINI_CROSS_APP_RENAMES: Map<String, String> = DRIVE_SUITE_CROSS_A
  * construction. Independent of [keepOriginalPackageScopedNames]: process names ALWAYS
  * change with the manifest package rename (relative android:process attributes resolve
  * against the new package), there is no legacy-identity mode for them.
+ * @param rewriteSelfComponentReferenceStrings v1.1.3: rewrite the app's own package name
+ * where it appears as a RUNTIME-RESOLVED component/package reference inside flattened
+ * intent URIs and slash-form ComponentName strings. Two rules (both gated by this flag,
+ * both verified against the full 17.60.15.ve.arm64 string census — exactly four strings
+ * match, zero false positives):
+ *   1. flattened Intent URIs (the Intent.toUri/parseUri "#Intent;...;end" format, with or
+ *      without an "intent:" scheme prefix): the values of the component= and package=
+ *      segments are rewritten when they equal the ORIGINAL package, e.g. the Google app's
+ *      flag-driven assistant launch
+ *      "#Intent;component=com.google.android.googlequicksearchbox/com.google.android.apps.gsa.staticplugins.opa.OpaActivity;i.requested_mic_state=3;end"
+ *      (class Lgtis;->a, parsed via Lguww;->g -> Intent.parseUri) and the settings
+ *      deep-link
+ *      "intent:#Intent;action=com.google.android.googlequicksearchbox.action.ASSISTANT_SETTINGS;package=com.google.android.googlequicksearchbox;S.assistant_settings_feature=privacy_advisor;...;end"
+ *      (classes Latra;->a / Lekxw;->a). After the manifest rename these resolve against
+ *      a package that no longer exists -> ActivityNotFoundException -> the feature
+ *      silently no-ops (or crashes when uncaught); the ACTION segment is deliberately
+ *      NOT rewritten because the manifest's own intent filters keep the original action
+ *      strings, so both sides stay consistent.
+ *   2. slash-form self ComponentNames "<fromPkg>/<fully.qualified.Class>": the package
+ *      part is rewritten when the part after the slash looks like a fully-qualified class
+ *      name (contains a dot and does not end with '/'), e.g.
+ *      "com.google.android.googlequicksearchbox/com.google.android.voiceinteraction.GsaVoiceInteractionService"
+ *      (Lenhg;->apply / Lenho;->c) and
+ *      "com.google.android.googlequicksearchbox/com.google.android.apps.gsa.notificationlistener.GsaNotificationListenerService"
+ *      (Lafjw;->onClick). The class-shape guard deliberately EXCLUDES the resource-prefix
+ *      and feature-id slash strings that share the "<fromPkg>/..." shape but must stay
+ *      original: "<fromPkg>/" and "<fromPkg>/drawable/" (resolve against the UNCHANGED
+ *      resources.arsc package), and the assistant-provider feature ids
+ *      "<fromPkg>/assistant", "/lens", "/omni", "/xr", "/bisto", "/smartdictation",
+ *      "/aim", "/omnixr", "/omni/live", "/lens/lensient", "/lens/transcription",
+ *      "/lens/voiceincamera", "/assistantautoprojected" (no dots in the tail).
+ * Verified-safe categories that NO rule touches: dotted class names like
+ * "<fromPkg>.SearchActivity" (used as ComponentName(Context, className) where the
+ * package comes from the renamed context, and as getClassName() string-switch
+ * comparisons — the patcher never renames classes); custom actions
+ * "<fromPkg>.action.*" (manifest and DEX stay original on both sides); the
+ * "android-app://<fromPkg>/..." referrer labels (EXTRA_REFERRER_NAME, informational);
+ * market/play-store URLs; and the car/Android-Auto package allowlists.
  * @param crossAppPackageRenames v1.0.5: EXACT-match renames for OTHER family apps' package
  * names and bare authority strings, so a renamed app family can keep resolving its own
  * members after the manifest package rename. Added for the Drive suite (Drive, Docs,
@@ -313,6 +351,7 @@ fun gmsCoreSupportPatch(
     keepOriginalPackageScopedNames: Boolean = false,
     rewriteSelfPackageNameStrings: Boolean = false,
     rewriteProcessNameStrings: Boolean = false,
+    rewriteSelfComponentReferenceStrings: Boolean = false,
     crossAppPackageRenames: Map<String, String> = emptyMap(),
     crossAppContentUriRenames: Map<String, String> = emptyMap(),
     serviceCheckFingerprint: Fingerprint? = ServiceCheckFingerprint,
@@ -487,6 +526,7 @@ fun gmsCoreSupportPatch(
             keepOriginalPackageScopedNames: Boolean,
             rewriteSelfPackageNameStrings: Boolean,
             rewriteProcessNameStrings: Boolean,
+            rewriteSelfComponentReferenceStrings: Boolean,
             crossAppPackageRenames: Map<String, String>,
             crossAppContentUriRenames: Map<String, String>,
         ): (String) -> String? = { string ->
@@ -539,6 +579,34 @@ fun gmsCoreSupportPatch(
                 rewriteProcessNameStrings && string.startsWith("$fromPackageName:") ->
                     toPackageName + string.removePrefix(fromPackageName)
 
+                // v1.1.3: flattened Intent URIs (Intent.toUri format). The component=/package=
+                // segment values reference the app by its ORIGINAL package, which no longer
+                // exists after the manifest rename — Intent.parseUri consumers then fail to
+                // resolve (mic launch, assistant settings deep-links; see the parameter doc
+                // for the field-verified call sites). The #Intent; marker makes the rule
+                // collision-proof: no class name, authority, resource prefix or action ever
+                // contains it. The action= segment deliberately keeps the ORIGINAL value —
+                // the manifest's own intent filters keep the original action strings too.
+                rewriteSelfComponentReferenceStrings && string.contains("#Intent;") &&
+                        (string.contains("component=$fromPackageName/") ||
+                                string.contains(";package=$fromPackageName;")) ->
+                    string
+                        .replace("component=$fromPackageName/", "component=$toPackageName/")
+                        .replace(";package=$fromPackageName;", ";package=$toPackageName;")
+
+                // v1.1.3: slash-form self ComponentNames "<fromPkg>/<fully.qualified.Class>".
+                // The class-shape guard (tail contains a dot, does not end with '/') is what
+                // separates these from the resource-prefix strings ("<fromPkg>/drawable/",
+                // the bare "<fromPkg>/") and the assistant feature ids ("<fromPkg>/lens",
+                // "/omni", ...) which must stay original — verified against the full
+                // 17.60.15 census: exactly the GsaVoiceInteractionService and
+                // GsaNotificationListenerService strings match.
+                rewriteSelfComponentReferenceStrings && string.startsWith("$fromPackageName/") &&
+                        string.removePrefix("$fromPackageName/").let {
+                            it.contains(".") && !it.endsWith("/")
+                        } ->
+                    toPackageName + string.removePrefix(fromPackageName)
+
                 rewriteSelfPackageNameStrings &&
                         string == "$fromPackageName.permission.C2D_MESSAGE" ->
                     "$toPackageName.permission.C2D_MESSAGE"
@@ -589,6 +657,7 @@ fun gmsCoreSupportPatch(
                 keepOriginalPackageScopedNames,
                 rewriteSelfPackageNameStrings,
                 rewriteProcessNameStrings,
+                rewriteSelfComponentReferenceStrings,
                 crossAppPackageRenames,
                 crossAppContentUriRenames,
             ),
