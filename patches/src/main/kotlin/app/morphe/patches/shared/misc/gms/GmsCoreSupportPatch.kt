@@ -28,6 +28,7 @@ import app.morphe.util.returnEarly
 import com.android.tools.smali.dexlib2.Opcode
 import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction21c
 import com.android.tools.smali.dexlib2.iface.instruction.OneRegisterInstruction
+import com.android.tools.smali.dexlib2.iface.instruction.WideLiteralInstruction
 import com.android.tools.smali.dexlib2.iface.instruction.formats.Instruction21c
 import com.android.tools.smali.dexlib2.iface.reference.StringReference
 import com.android.tools.smali.dexlib2.immutable.reference.ImmutableStringReference
@@ -213,6 +214,37 @@ internal val GEMINI_CROSS_APP_RENAMES: Map<String, String> = DRIVE_SUITE_CROSS_A
  * fully-qualified CLASS names (e.g. "com.google.android.apps.docs.app.PaymentsActivity"),
  * which remain valid after the package rename (the patcher never renames classes) and must
  * not be mangled. The exact-match rules above cannot collide with class names.
+ * @param rewriteProcessNameStrings v1.1.2: rewrite the app's own COLON-suffixed process
+ * name strings "<fromPkg>:<suffix>" (e.g. "com.google.android.googlequicksearchbox:googleapp")
+ * to "<toPkg>:<suffix>", AND the paired hashCode int constants of javac string-switch
+ * dispatch sites in the same methods. Required by the Google app (Velvet), which is a
+ * multiprocess app whose Application (VelvetMultiprocessRoot_Application, class chain
+ * Lwjv;->Lwjn;) builds a DIFFERENT Dagger/Hilt component per process in
+ * Lgsxb;->gk()Ljava/lang/Object; by switching on the literal process-name strings
+ * "com.google.android.googlequicksearchbox:googleapp" (hashCode const -245775132) and
+ * "com.google.android.googlequicksearchbox:ar_runtime_loader" (hashCode const 2008274884):
+ * only those two processes get the Lxba; component graph (whose Lxeu; implements the
+ * entry points Lccwz;/Ledkx;), every other process gets the Lwrw; fallback graph
+ * (Lwwx;). The manifest declares all processes RELATIVE (android:process=":googleapp"),
+ * so after the manifest package rename the runtime process name becomes
+ * "app.morphe.android.googlequicksearchbox:googleapp" — the unpatched DEX constants no
+ * longer match, the fallback component is built in the :googleapp process, and
+ * GoogleAppActivity.onCreate dies with IllegalStateException "Missing entry point..."
+ * caused by ClassCastException "Cannot cast wwx to ccwz" (field-verified: bug report
+ * DBY-W09NM-2026-09-26-18-09-54, three fatal crashes 18:02/18:09 on build 17.60.15.ve.arm64
+ * vc 301810370; identical mechanism in the 18:09:40 receiver crash "Cannot cast wrw to
+ * edkx"). Two rewrites are needed together — the string constants alone fix the equals()
+ * arms but the hashCode switch guards never fire — so this flag enables both:
+ *   1. every DEX string starting with "<fromPkg>:" is rewritten prefix-intact;
+ *   2. in any method that references such a string, int const instructions whose literal
+ *      equals the ORIGINAL string's hashCode are replaced with the RENAMED string's
+ *      hashCode (e.g. -245775132 → -334056736 for ":googleapp",
+ *      2008274884 → 1150355904 for ":ar_runtime_loader" under the default Morphe target).
+ * Colon-suffixed strings can never be fully-qualified class names, resource URIs or
+ * authorities (none of those contain ':'), so the string rule is collision-safe by
+ * construction. Independent of [keepOriginalPackageScopedNames]: process names ALWAYS
+ * change with the manifest package rename (relative android:process attributes resolve
+ * against the new package), there is no legacy-identity mode for them.
  * @param crossAppPackageRenames v1.0.5: EXACT-match renames for OTHER family apps' package
  * names and bare authority strings, so a renamed app family can keep resolving its own
  * members after the manifest package rename. Added for the Drive suite (Drive, Docs,
@@ -280,6 +312,7 @@ fun gmsCoreSupportPatch(
     earlyReturnFingerprints: Set<Fingerprint> = setOf(),
     keepOriginalPackageScopedNames: Boolean = false,
     rewriteSelfPackageNameStrings: Boolean = false,
+    rewriteProcessNameStrings: Boolean = false,
     crossAppPackageRenames: Map<String, String> = emptyMap(),
     crossAppContentUriRenames: Map<String, String> = emptyMap(),
     serviceCheckFingerprint: Fingerprint? = ServiceCheckFingerprint,
@@ -333,6 +366,78 @@ fun gmsCoreSupportPatch(
             }
         }
 
+        /**
+         * v1.1.2: fixes javac string-switch dispatch on process names (see the
+         * [rewriteProcessNameStrings] parameter doc for the field-verified crash).
+         *
+         * A switch compiled from `when (processName) { "pkg:suffix" -> ... }` compares
+         * `processName.hashCode()` against int CONST literals FIRST and only then calls
+         * equals() on the string constants. Rewriting the string constants alone is
+         * therefore not enough: the hashCode guards keep the ORIGINAL strings' hashes and
+         * never fire after the package rename.
+         *
+         * This pass must run BEFORE [transformStringReferences] so it can derive the old
+         * hashCodes from the still-original const-strings. For every method that
+         * references a "<fromPackageName>:..." string, any narrow int const whose literal
+         * equals that string's hashCode is replaced with the hashCode of the renamed
+         * string. Auto-discovery over all methods makes it resilient across app versions:
+         * processes added or removed by Google simply contribute (or drop out of) the map,
+         * and a hash literal is only ever touched when the SAME method also references the
+         * corresponding process-name string — a 32-bit coincidence on top of that
+         * co-occurrence is not a realistic event.
+         */
+        fun transformProcessNameHashSwitches(fromPackageName: String, toPackageName: String) {
+            val fromPrefix = "$fromPackageName:"
+            val narrowConstOpcodes = setOf(
+                Opcode.CONST,
+                Opcode.CONST_16,
+                Opcode.CONST_4,
+                // CONST_HIGH16 deliberately excluded: its literal field holds the HIGH
+                // 16 bits only, so wideLiteral is not the mathematical constant value.
+            )
+
+            getAllClassesWithStrings().forEach {
+                val mutableClass by lazy {
+                    mutableClassDefBy(it)
+                }
+
+                it.methods.forEach classLoop@{ method ->
+                    val implementation = method.implementation ?: return@classLoop
+
+                    // Map original process-name hashCode -> renamed process-name hashCode
+                    // for every "<fromPkg>:..." const-string referenced in this method.
+                    val hashRenames = HashMap<Long, Long>()
+                    implementation.instructions.forEach { instruction ->
+                        val string =
+                            ((instruction as? Instruction21c)?.reference as? StringReference)?.string
+                                ?: return@forEach
+                        if (!string.startsWith(fromPrefix)) return@forEach
+
+                        val oldHash = string.hashCode().toLong()
+                        val newHash =
+                            (toPackageName + string.removePrefix(fromPackageName)).hashCode().toLong()
+                        hashRenames[oldHash] = newHash
+                    }
+                    if (hashRenames.isEmpty()) return@classLoop
+
+                    val mutableMethod by lazy {
+                        mutableClass.findMutableMethodOf(method)
+                    }
+
+                    implementation.instructions.forEachIndexed { index, instruction ->
+                        if (instruction.opcode !in narrowConstOpcodes) return@forEachIndexed
+
+                        val oldHash = (instruction as? WideLiteralInstruction)?.wideLiteral
+                            ?: return@forEachIndexed
+                        val newHash = hashRenames[oldHash] ?: return@forEachIndexed
+
+                        val register = (instruction as? OneRegisterInstruction).registerA
+                        mutableMethod.replaceInstruction(index, "const v$register, $newHash")
+                    }
+                }
+            }
+        }
+
         // region Collection of transformations that are applied to all strings.
 
         fun commonTransform(referencedString: String): String? = when (referencedString) {
@@ -377,6 +482,7 @@ fun gmsCoreSupportPatch(
             toPackageName: String,
             keepOriginalPackageScopedNames: Boolean,
             rewriteSelfPackageNameStrings: Boolean,
+            rewriteProcessNameStrings: Boolean,
             crossAppPackageRenames: Map<String, String>,
             crossAppContentUriRenames: Map<String, String>,
         ): (String) -> String? = { string ->
@@ -421,6 +527,14 @@ fun gmsCoreSupportPatch(
                 rewriteSelfPackageNameStrings && string == fromPackageName ->
                     toPackageName
 
+                // v1.1.2: multiprocess DI dispatch (Velvet's Lgsxb;->gk() component
+                // factory and any sibling switch). Process names are colon-suffixed,
+                // can never be class names/authorities/URIs, and ALWAYS change with the
+                // manifest package rename — see the parameter doc for the field-verified
+                // "Missing entry point" crash this fixes. Keeps the ":suffix" intact.
+                rewriteProcessNameStrings && string.startsWith("$fromPackageName:") ->
+                    toPackageName + string.removePrefix(fromPackageName)
+
                 rewriteSelfPackageNameStrings &&
                         string == "$fromPackageName.permission.C2D_MESSAGE" ->
                     "$toPackageName.permission.C2D_MESSAGE"
@@ -453,6 +567,14 @@ fun gmsCoreSupportPatch(
 
         val packageName = setOrGetFallbackPackageName(toPackageName)
 
+        // v1.1.2: process-name hash switches must be fixed BEFORE the string transform
+        // rewrites the const-strings they guard (the pass derives the old hashCodes from
+        // the still-original strings). See [rewriteProcessNameStrings] doc for the
+        // field-verified mechanism.
+        if (rewriteProcessNameStrings) {
+            transformProcessNameHashSwitches(fromPackageName, packageName)
+        }
+
         // Transform all strings using all provided transforms, first match wins.
         val transformations = arrayOf(
             ::commonTransform,
@@ -462,6 +584,7 @@ fun gmsCoreSupportPatch(
                 packageName,
                 keepOriginalPackageScopedNames,
                 rewriteSelfPackageNameStrings,
+                rewriteProcessNameStrings,
                 crossAppPackageRenames,
                 crossAppContentUriRenames,
             ),

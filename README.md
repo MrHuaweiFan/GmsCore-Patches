@@ -72,6 +72,23 @@ Two notes specific to the v1.1.x additions (v1.1.1 repinned the Google app; see 
   the same release is on APKPure. Gemini is an app-bundle (AAB) app: every mirror only offers
   base-APK-plus-splits bundles, so extract/patch the **base APK** (this is also exactly what the
   fingerprints were verified against).
+- **Gemini base APK, ready to patch:** the exact verified base APK
+  (`com.google.android.apps.bard`, versionCode 338, SHA-256
+  `a778f01e46d2beec58bba15cc928661deba078ac67069abd35e64729d6d95b26`) is attached to the
+  releases as an asset:
+  [Gemini-1.0.970490183-base.apk](https://github.com/MrHuaweiFan/GmsCore-Patches/releases/download/v1.1.2/Gemini-1.0.970490183-base.apk) —
+  download it, have Morphe patch THAT file, no XAPK unpacking needed.
+
+One note specific to v1.1.2:
+
+- The Google app is a **multiprocess** app: it builds a different dependency-injection graph per
+  process, selected by comparing the literal process-name strings (and their hashCode constants)
+  against the current process. The package rename changes every process name, so v1.1.2's patch
+  now rewrites those DEX string constants and their paired hash constants
+  (`rewriteProcessNameStrings`). This fixes the field-reported crash where the patched Google app
+  died on launch with `IllegalStateException: Missing entry point` / `ClassCastException` in the
+  `:googleapp` process (bug report DBY-W09NM-2026-09-26-18-09-54). If you patched with v1.1.1 or
+  earlier, re-patch with v1.1.2 or newer.
 
 ## Using the patches
 

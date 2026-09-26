@@ -37,12 +37,28 @@ import app.morphe.patches.shared.misc.settings.preference.PreferenceScreenPrefer
  *     on the v1.1.1 pin; Android 12L on the v1.1.0 beta pin) so the APK
  *     installs on EMUI-class devices; see the resource patch parameter doc
  *     for the trade-off.
+ *
+ * v1.1.2 addition, field-derived from bug report DBY-W09NM-2026-09-26-18-09-54
+ * (patched 17.60.15.ve.arm64, three FATAL "Missing entry point" crashes in the
+ * :googleapp process):
+ *   - rewriteProcessNameStrings is enabled because Velvet is a MULTIPROCESS app
+ *     that builds a per-process Dagger/Hilt component by switching on literal
+ *     "com.google.android.googlequicksearchbox:<process>" strings AND their
+ *     hashCode int constants (Lgsxb;->gk()). After the package rename the
+ *     runtime process name is app.morphe.android.googlequicksearchbox:<process>,
+ *     the unpatched switch falls through to the fallback component, and
+ *     GoogleAppActivity.onCreate dies with ClassCastException (wwx → ccwz;
+ *     receiver path wrw → edkx). The flag rewrites both the strings and the
+ *     paired hashCode constants; see the shared engine parameter doc for the
+ *     full mechanism. All manifest android:process attributes are RELATIVE
+ *     (":googleapp" etc.), so no manifest-side change is needed.
  */
 @Suppress("unused")
 val gmsCoreSupportPatch = gmsCoreSupportPatch(
     fromPackageName = GOOGLE_APP_PACKAGE_NAME,
     toPackageName = MORPHE_GOOGLE_APP_PACKAGE_NAME,
     rewriteSelfPackageNameStrings = true,
+    rewriteProcessNameStrings = true,
     crossAppPackageRenames = GOOGLE_APP_CROSS_APP_RENAMES,
     crossAppContentUriRenames = DRIVE_SUITE_CONTENT_URI_RENAMES,
     mainActivityOnCreateFingerprint = HomeActivityOnCreateFingerprint,

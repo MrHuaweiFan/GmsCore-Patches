@@ -59,6 +59,7 @@ Per-app behavior is selected through these parameters:
 | Cross-app | `crossAppPackageRenames` / `crossAppContentUriRenames` = the shared Drive-suite maps | Drive/Docs/Sheets/Slides | Exact-match renames of sibling suite package names and the Drive storage authorities so the four renamed apps keep resolving each other. Requires default `app.morphe.*` target names. |
 | Cross-app (v1.1.0) | `GOOGLE_APP_CROSS_APP_RENAMES` / `GEMINI_CROSS_APP_RENAMES` | **Google app, Gemini** | The Drive-suite maps plus the Google-app↔Gemini pair, so the two renamed apps keep resolving each other (Gemini probes the Google app's version; the Google app hands Assistant traffic to bard). Requires default `app.morphe.*` target names. |
 | Fingerprint overrides (v1.1.0) | `serviceCheckFingerprint` / `googlePlayUtilityFingerprint` | **Gemini** (serviceCheck = null, GPU = custom) | Per-app replacement of the two shared GMS-utility hooks for apps whose bundled GMS code has a different shape. See the section “The v1.1.0 additions” below. |
+| Process-name rewrite (v1.1.2) | `rewriteProcessNameStrings = true` | **Google app** | Rewrite every DEX string `"<fromPkg>:<process>"` to the renamed prefix AND the paired hashCode `const` literals of string-switch dispatch sites, so multiprocess DI picks the right per-process component after the package rename. See failure mode F8. |
 | Install floor (v1.1.0) | `forceMinSdkVersion = 29` | **Google app** | Rewrites the decoded manifest's `android:minSdkVersion` so the APK installs on devices below the declared minimum. Install gate only — not an API backport. |
 | Shortcut hardening | `hardenShortcutCharStrings = true` | **Gmail** | Inline the hardware-keyboard shortcut trigger characters into the res menu XML files and re-assert their string values. See failure mode F7. |
 
@@ -118,13 +119,14 @@ Key structural facts (all verified from the APKs):
 
 ## The v1.1.x additions: Google app and Gemini
 
-Added 2026-09-26 (v1.1.0); the Google app pin was replaced in v1.1.1 the same day.
-Both patches are statically verified against their pinned APKs. On-device field
-testing under ReVanced GmsCore is still pending — expect the first
-logs to surface pre-hook GMS binds in the Application classes
-(`VelvetMultiprocessRoot_Application` for the Google app, `Bard_Application` for
-Gemini), which would be handled via `primeMethodFingerprint` / `earlyReturnFingerprints`
-the same way Gmail's were.
+Added 2026-09-26 (v1.1.0); the Google app pin was replaced in v1.1.1 the same day;
+v1.1.2 fixed the first field-reported Google-app crash (F8 below). Both patches
+are statically verified against their pinned APKs; the Google app has one round
+of on-device field testing (the F8 report) and Gemini's field test is still
+pending — expect further logs to surface pre-hook GMS binds in the Application
+classes (`VelvetMultiprocessRoot_Application` for the Google app,
+`Bard_Application` for Gemini), which would be handled via `primeMethodFingerprint` /
+`earlyReturnFingerprints` the same way Gmail's were.
 
 **Google app 17.60.15.ve.arm64 (301810370), minSdk 30 → forced to 29.**
 
@@ -428,6 +430,81 @@ with the key event, confirm the same stack, and consider a bytecode guard
 (early-return on the dispatcher) as a last resort — it needs a per-version fingerprint
 of the obfuscated `Lzmq;` class.
 
+### F8 — patched Google app FATAL on launch: `IllegalStateException: Missing entry point. If you're in a test with explicit entry points specified in your @TestRoot...` caused by `ClassCastException: Cannot cast wwx to ccwz` (v1.1.1, bug report DBY-W09NM-2026-09-26-18-09-54)
+
+Three fatal crashes in the report (18:02:21 + 18:02:24 on the earlier install,
+18:09:19 and 18:09:40 on the final install of 17.60.15.ve.arm64), two shapes,
+one root cause:
+
+- `GoogleAppActivity.onCreate → I() → fqaj.a → "Missing entry point" ←
+  ClassCastException "Cannot cast wwx to ccwz"` (activity launch)
+- `fqgx.onReceive → d() → fpxf.a → "Failed to get an entry point. Did you mark
+  your interface with @SingletonEntryPoint?" ← "Cannot cast wrw to edkx"`
+  (ACCOUNT_SWITCH_BROADCAST receiver, same `:googleapp` process)
+
+**Analysis** (all steps verified against the bug report and the pinned 17.60.15
+APK):
+
+1. The Google app is multiprocess (`:googleapp`, `:search`, `:assistant`,
+   `:crash_report`, `:train`, `:ar_runtime_loader`, ... — all RELATIVE
+   `android:process` attributes in the manifest, so every process name changes
+   with the package rename).
+2. `VelvetMultiprocessRoot_Application` (class chain `Lwjv;→Lwjp;→Lwjr;→Lwjn;→Lwjl;`)
+   implements Velvet's "custom inject" framework: one Application for all
+   processes, but a per-process Dagger/Hilt component. The component factory is
+   `Lgsxb;->gk()Ljava/lang/Object;` (classes2.dex), a javac string-switch on the
+   CURRENT process name with exactly two special cases:
+   `"com.google.android.googlequicksearchbox:googleapp"` (hashCode const
+   -245775132) and `"com.google.android.googlequicksearchbox:ar_runtime_loader"`
+   (hashCode const 2008274884) — both build the `Lxba;` component graph (whose
+   `Lxeu;` implements the entry-point interfaces `Lccwz;`/`Ledkx;`);
+   EVERY OTHER process name gets the `Lwrw;` fallback graph (`Lwwx;`).
+3. On the patched install the runtime process name is
+   `app.morphe.android.googlequicksearchbox:googleapp`; neither DEX constant
+   matches (and neither does either hashCode guard), so the FALLBACK component
+   is built in the `:googleapp` process. `wwx`/`wrw` do not implement
+   `ccwz`/`edkx`, the entry-point cast in `fqaj.a`/`fpxf.a` throws, and the
+   process dies before the activity is created.
+4. Why v1.1.1 missed it: `rewriteSelfPackageNameStrings` only rewrites the
+   EXACT package string — `"com.google.android.googlequicksearchbox:googleapp"`
+   is a colon-suffixed variant that no rule covered, and even a string rewrite
+   alone would not fix the hashCode switch guards (the ints -245775132 /
+   2008274884 are separate `const` instructions, not strings).
+5. Not related: the process names are NOT manifest-declared absolutely, GMS
+   binds were NOT the trigger (the crash is before any GMS call), and the
+   receiver crash proves the whole process — not just the activity — is on the
+   wrong component graph.
+
+**Fix (v1.1.2): `rewriteProcessNameStrings`** (googleapp patch only; default
+false, so the other seven apps' patch output is unchanged):
+
+1. a new string rule rewrites every DEX string starting with
+   `"<fromPackageName>:"` to the renamed prefix (colon-suffixed strings can
+   never be class names / authorities / content URIs, so the rule is
+   collision-free by construction — verified against the full 17.60.15 string
+   census: 21 process-name strings incl. the bare `"com.google.android.googlequicksearchbox:"`
+   prefix constant);
+2. `transformProcessNameHashSwitches` rewrites the paired hashCode `const`
+   literals in any method that references such a string (auto-discovery, so
+   processes added/removed in future builds need no map update). For the
+   default Morphe target: -245775132 → -334056736 (`:googleapp`) and
+   2008274884 → 1150355904 (`:ar_runtime_loader`).
+
+Gemini needs none of this: its DEX census contains zero
+`"com.google.android.apps.bard:..."` strings (single-process app, the
+`BardEntryPointActivity` runs in the main process).
+
+**Watch items not covered by the fix (feature-level, not crashes):** the
+17.60.15 census also contains SLASH-form strings — flattened ComponentNames
+(`"com.google.android.googlequicksearchbox/SearchActivity"`,
+`".../SearchWidgetProvider"`, `".../com.google.android.apps.gsa.notificationlistener.GsaNotificationListenerService"`)
+and resource-prefix constants (`".../drawable/"`, `".../lens"`, ...). These were
+NOT rewritten: the ComponentName flattens need the renamed package but the
+resource prefixes resolve against the (unchanged) resources.arsc package name,
+so a blanket slash rule cannot distinguish them. If a field report shows
+widget/shortcut/notification-listener breakage, map the exact usage site first
+and add per-string exact-match keys to the cross-app map, never a prefix rule.
+
 ## On-device debugging playbook
 
 1. **microG self-check first** (Self-Check screen: device registration OK, account
@@ -520,7 +597,11 @@ different train AND lacks arm64-v8a native libraries, so it is NOT the pin) and 
 Google app against 17.60.15.ve.arm64 (301810370), the stable standalone APK build
 downloaded from APKPure and byte-matched to APKMirror's identical nodpi variant listing
 (same versionCode, same file size, same release); the Gemini pin was re-checked
-unchanged. All are signed with APK
+unchanged. The v1.1.2 fix was verified against that same 17.60.15 pin plus the
+field bug report DBY-W09NM-2026-09-26-18-09-54 (dispatch analysis: component
+factory `Lgsxb;->gk()` string-switch, `Lxeu;`/`Lwwx;` interface censuses,
+manifest `android:process` inventory, DEX colon-string census, Java hashCode
+constants recomputed by script). All are signed with APK
 Signature Scheme v2 (v3 also present on the v1.1.x pair) by a single Google certificate
 (three distinct keys as noted above).
 Google distributes these apps as split bundles (with the exception of the Google app's
