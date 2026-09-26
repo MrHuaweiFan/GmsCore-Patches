@@ -19,12 +19,14 @@ This is a fork of [De-Vanced](https://github.com/RookieEnough/De-Vanced) focused
 | Google Drive | ✅ Launch and account working |
 | Google Docs / Sheets / Slides | ✅ Launch and account working; the suite keeps resolving its own apps after the rename |
 | Google Maps | ✅ Launch and account working |
-| Google app (Search) | 🧪 Pinned and statically verified; on-device testing pending (installs with a lowered minSdk floor) |
-| Gemini | 🧪 Pinned and statically verified; on-device testing pending |
+| Google app (Search) | ✅ Launch and account working; some Assistant/voice features remain limited on GMS-free devices |
+| Gemini | ✅ Launch and account working (the pinned build is a shell over the Google app — see the guide) |
 
 Patch support is **pinned to the exact app versions listed below** — other versions fail by
 design, because the fingerprints depend on obfuscated class names that change with every
-Google release.
+Google release. Version-specific notes, known-issue details, package-name guidance and the
+analysis behind every pin live in
+[GMSCORE_GOOGLE_APPS_GUIDE.md](GMSCORE_GOOGLE_APPS_GUIDE.md).
 
 ## Google apps patches
 
@@ -50,45 +52,13 @@ Each app's patch set in Morphe Manager consists of **GmsCore support** (the main
 **Change package name** helper the engine relies on. Toggling *GmsCore support* pulls in the
 other two automatically.
 
-Two things worth knowing when picking package names:
-
-- The Drive suite is one logical app split across four packages (Drive, Docs, Sheets, Slides).
-  Keep the default `app.morphe.*` target package names for all four — a custom package name on
-  any suite app desynchronizes the family (file open, editor hand-off, split view).
-- The patched Gmail cannot be installed alongside the genuine app; it is meant to replace it.
-- The Google app and Gemini reference each other (and the Drive family + Gmail) by exact package
-  name; keep their default `app.morphe.*` target names too, so the cross-app renames stay in sync.
-
-Two notes specific to the v1.1.x additions (v1.1.1 repinned the Google app; see below):
-
-- The pinned Google app build declares Android 11 (SDK 30) as its minimum, so the patch lowers
-  the install floor to SDK 29 (`forceMinSdkVersion`). That un-blocks installation on EMUI-class
-  devices; it does not add missing platform APIs, so runtime issues on older devices remain a
-  crash-log matter.
-- The pinned Gemini build is the Sep-7 release, not the Sep-8 one: the newer build raised its
-  minimum to Android 12L and would not install on the reference device at all.
-- Where to get the APKs: the Google app pin is a **standalone installable APK** (nodpi,
-  arm64-v8a + arm-v7a fat build) — on APKMirror pick that variant and download the plain .apk;
-  the same release is on APKPure. Gemini is an app-bundle (AAB) app: every mirror only offers
-  base-APK-plus-splits bundles, so extract/patch the **base APK** (this is also exactly what the
-  fingerprints were verified against).
-- **Gemini base APK, ready to patch:** the exact verified base APK
-  (`com.google.android.apps.bard`, versionCode 338, SHA-256
-  `a778f01e46d2beec58bba15cc928661deba078ac67069abd35e64729d6d95b26`) is attached to the
-  releases as an asset:
-  [Gemini-1.0.970490183-base.apk](https://github.com/MrHuaweiFan/GmsCore-Patches/releases/download/v1.1.2/Gemini-1.0.970490183-base.apk) —
-  download it, have Morphe patch THAT file, no XAPK unpacking needed.
-
-One note specific to v1.1.2:
-
-- The Google app is a **multiprocess** app: it builds a different dependency-injection graph per
-  process, selected by comparing the literal process-name strings (and their hashCode constants)
-  against the current process. The package rename changes every process name, so v1.1.2's patch
-  now rewrites those DEX string constants and their paired hash constants
-  (`rewriteProcessNameStrings`). This fixes the field-reported crash where the patched Google app
-  died on launch with `IllegalStateException: Missing entry point` / `ClassCastException` in the
-  `:googleapp` process (bug report DBY-W09NM-2026-09-26-18-09-54). If you patched with v1.1.1 or
-  earlier, re-patch with v1.1.2 or newer.
+**Gemini base APK, ready to patch:** Gemini is an app-bundle (AAB) app, so mirrors only
+offer base-APK-plus-splits bundles. The exact verified base APK
+(`com.google.android.apps.bard`, versionCode 338, SHA-256
+`a778f01e46d2beec58bba15cc928661deba078ac67069abd35e64729d6d95b26`) is attached to the
+releases as an asset:
+[Gemini-1.0.970490183-base.apk](https://github.com/MrHuaweiFan/GmsCore-Patches/releases/download/v1.1.2/Gemini-1.0.970490183-base.apk) —
+download it, have Morphe patch THAT file, no XAPK unpacking needed.
 
 ## Using the patches
 

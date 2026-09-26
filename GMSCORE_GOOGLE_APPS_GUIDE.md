@@ -60,6 +60,7 @@ Per-app behavior is selected through these parameters:
 | Cross-app (v1.1.0) | `GOOGLE_APP_CROSS_APP_RENAMES` / `GEMINI_CROSS_APP_RENAMES` | **Google app, Gemini** | The Drive-suite maps plus the Google-app↔Gemini pair, so the two renamed apps keep resolving each other (Gemini probes the Google app's version; the Google app hands Assistant traffic to bard). Requires default `app.morphe.*` target names. |
 | Fingerprint overrides (v1.1.0) | `serviceCheckFingerprint` / `googlePlayUtilityFingerprint` | **Gemini** (serviceCheck = null, GPU = custom) | Per-app replacement of the two shared GMS-utility hooks for apps whose bundled GMS code has a different shape. See the section “The v1.1.0 additions” below. |
 | Process-name rewrite (v1.1.2) | `rewriteProcessNameStrings = true` | **Google app** | Rewrite every DEX string `"<fromPkg>:<process>"` to the renamed prefix AND the paired hashCode `const` literals of string-switch dispatch sites, so multiprocess DI picks the right per-process component after the package rename. See failure mode F8. |
+| Component-reference rewrite (v1.1.3) | `rewriteSelfComponentReferenceStrings = true` | **Google app** | Rewrite the ORIGINAL package inside flattened `#Intent;...;end` URIs (the `component=`/`package=` segment values) and in slash-form self ComponentNames `"<fromPkg>/<fully.qualified.Class>"`, so flag-driven self-launches (mic/assistant, settings deep-links, voice-interaction + notification-listener components) still resolve after the rename. See failure mode F9. |
 | Install floor (v1.1.0) | `forceMinSdkVersion = 29` | **Google app** | Rewrites the decoded manifest's `android:minSdkVersion` so the APK installs on devices below the declared minimum. Install gate only — not an API backport. |
 | Shortcut hardening | `hardenShortcutCharStrings = true` | **Gmail** | Inline the hardware-keyboard shortcut trigger characters into the res menu XML files and re-assert their string values. See failure mode F7. |
 
@@ -120,13 +121,50 @@ Key structural facts (all verified from the APKs):
 ## The v1.1.x additions: Google app and Gemini
 
 Added 2026-09-26 (v1.1.0); the Google app pin was replaced in v1.1.1 the same day;
-v1.1.2 fixed the first field-reported Google-app crash (F8 below). Both patches
-are statically verified against their pinned APKs; the Google app has one round
-of on-device field testing (the F8 report) and Gemini's field test is still
-pending — expect further logs to surface pre-hook GMS binds in the Application
-classes (`VelvetMultiprocessRoot_Application` for the Google app,
-`Bard_Application` for Gemini), which would be handled via `primeMethodFingerprint` /
+v1.1.2 fixed the first field-reported Google-app crash (F8 below); v1.1.3 fixed the
+post-launch feature breakage (F9 below) and moved all user-facing version-specific
+notes out of the README into this guide. Both patches are statically verified against
+their pinned APKs; both have one round of on-device field testing (F8 crash report;
+F9/F10 log-less field report — both apps launch and mostly work). Expect further
+logs to surface pre-hook GMS binds in the Application classes
+(`VelvetMultiprocessRoot_Application` for the Google app, `Bard_Application` for
+Gemini), which would be handled via `primeMethodFingerprint` /
 `earlyReturnFingerprints` the same way Gmail's were.
+
+### Package-name and install guidance (the user-facing rules)
+
+These are the constraints behind the "keep the default `app.morphe.*` target
+names" advice; they live here (not in the README) because they are guidance for
+picking/maintaining patches, not for using them:
+
+- The Drive suite is one logical app split across four packages (Drive, Docs,
+  Sheets, Slides). Keep the default `app.morphe.*` target package names for all
+  four — a custom package name on any suite app desynchronizes the family (file
+  open, editor hand-off, split view), because the cross-app renames are
+  exact-match maps into the shared engine.
+- The patched Gmail cannot be installed alongside the genuine app; it is meant
+  to replace it.
+- The Google app and Gemini reference each other (and the Drive family + Gmail)
+  by exact package name; keep their default `app.morphe.*` target names too, so
+  `GOOGLE_APP_CROSS_APP_RENAMES` / `GEMINI_CROSS_APP_RENAMES` stay in sync. The
+  Gemini shell HARD-DEPENDS on finding the patched Google app (F10): with a
+  custom target name it shows `ErrorActivity` (AGSA_DISABLED /
+  BARD_ACTIVITY_NOT_FOUND) instead of the chat.
+- The pinned Google app build declares Android 11 (SDK 30) as its minimum, so
+  the patch lowers the install floor to SDK 29 (`forceMinSdkVersion`). That
+  un-blocks installation on EMUI-class devices; it does not add missing platform
+  APIs, so runtime issues on older devices remain a crash-log matter.
+- The pinned Gemini build is the Sep-7 release, not the Sep-8 one: the newer
+  build raised its minimum to Android 12L and would not install on the reference
+  device at all.
+- Where to get the APKs: the Google app pin is a **standalone installable APK**
+  (nodpi, arm64-v8a + arm-v7a fat build) — on APKMirror pick that variant and
+  download the plain .apk; the same release is on APKPure (and other mirrors;
+  always verify the versionCode 301810370 and file size 236,766,877 bytes).
+  Gemini is an app-bundle (AAB) app: every mirror only offers
+  base-APK-plus-splits bundles, so use the release-attached base APK (linked
+  from the README) or extract the base APK yourself — the fingerprints were
+  verified against exactly that base APK.
 
 **Google app 17.60.15.ve.arm64 (301810370), minSdk 30 → forced to 29.**
 
@@ -504,6 +542,124 @@ resource prefixes resolve against the (unchanged) resources.arsc package name,
 so a blanket slash rule cannot distinguish them. If a field report shows
 widget/shortcut/notification-listener breakage, map the exact usage site first
 and add per-string exact-match keys to the cross-app map, never a prefix rule.
+
+### F9 — patched Google app launches, but the mic is dead ("sometimes crashing") and Assistant/Gemini settings deep-links silently do nothing (v1.1.2, field report without logs)
+
+**Symptoms (v1.1.2 field report, 17.60.15.ve.arm64 + Gemini 1.0.970490183):** the
+mic button in the Google app does nothing, occasionally crashing the app; in the
+Gemini surface, menu entries that open settings screens (the overflow menu's
+settings/privacy items) do nothing when tapped.
+
+**Analysis** (verified against the pinned 17.60.15 APK; no bug report available,
+so the mechanism was derived statically):
+
+1. Velvet resolves a class of self-launches through **flattened Intent URIs**
+   (the `Intent.toUri`/`parseUri` `"#Intent;...;end"` format) and **slash-form
+   ComponentName strings**, both of which embed the ORIGINAL package name as a
+   plain string:
+   - `Lgtis;->a` (classes2.dex) maps Phenotype flag ids to launch intents,
+     including `"#Intent;component=com.google.android.googlequicksearchbox/com.google.android.apps.gsa.staticplugins.opa.OpaActivity;i.requested_mic_state=3;end"`
+     — the Assistant/voice launch with a mic request (the modern mic path).
+     The string is parsed at dispatch time by `Lfpoh;->d` → `Lguww;->g`
+     (`Intent.parseUri`), so the component keeps the STALE package and
+     `startActivity` throws `ActivityNotFoundException`; some call sites catch
+     it ("does nothing"), some don't (crash).
+   - `Latra;->a` / `Lekxw;->a` (classes10.dex) build the settings deep-links
+     via `Intent.parseUri`, e.g.
+     `"intent:#Intent;action=com.google.android.googlequicksearchbox.action.ASSISTANT_SETTINGS;package=com.google.android.googlequicksearchbox;S.assistant_settings_feature=privacy_advisor;S.assistant_settings_privacy_screen_id=413;...;end"`
+     — the parsed intent's `mPackage` is the stale package, so resolution fails
+     before the action is even consulted. These builders feed the Assistant
+     settings screens that the Gemini surface's overflow menu opens.
+   - `Lenhg;->apply` / `Lenho;->c` (classes4.dex) build the
+     `GsaVoiceInteractionService` ComponentName from
+     `"com.google.android.googlequicksearchbox/com.google.android.voiceinteraction.GsaVoiceInteractionService"`
+     (slash form); `Lafjw;->onClick` (classes11.dex) does the same for
+     `GsaNotificationListenerService`.
+2. None of the pre-v1.1.3 rules touched these shapes: the exact-match rule only
+   rewrites the BARE package string, the v1.1.2 rule only colon-suffixed
+   process names, and the cross-app maps are exact keys. The dotted forms
+   (`"<pkg>.SearchActivity"`) were correctly left alone — they are used as
+   `ComponentName(Context, className)` (package from the renamed context) and
+   as `getClassName()` string-switch comparisons, both valid post-rename.
+
+**Fix (v1.1.3): `rewriteSelfComponentReferenceStrings`** (googleapp patch only;
+default false, the other seven apps' output is byte-identical):
+
+1. flattened-URI rule: strings containing `"#Intent;"` get their
+   `component=<fromPkg>/` and `;package=<fromPkg>;` segment values rewritten.
+   The `#Intent;` marker makes the rule collision-proof (no class name,
+   authority, resource prefix or action contains it), and the `action=` segment
+   deliberately keeps the ORIGINAL value because the manifest's own intent
+   filters keep the original action strings too — both sides stay consistent.
+2. slash-ComponentName rule: strings `"<fromPkg>/<tail>"` where the tail looks
+   like a fully-qualified class name (contains a dot, does not end with `/`).
+   The class-shape guard is what excludes the resource prefixes
+   (`"<fromPkg>/"`, `"<fromPkg>/drawable/"`) and the assistant-provider
+   feature ids (`"<fromPkg>/lens"`, `"/omni"`, `"/xr"`, ... — no dots).
+
+Simulation against the FULL 17.60.15 string census (415,600 unique strings):
+**exactly 4 strings rewrite** — the two flattened URIs above and the two
+service ComponentNames — with ZERO changes among 25 spot-checked exclusion
+strings, and zero matches in the Gemini census. The Gemini patch does not need
+the flag (its census contains no slash/URI self-references).
+
+**Verified-safe categories (never rewrite):** dotted class names
+(`ComponentName(Context, cls)` + `getClassName()` comparisons — the patcher
+never renames classes); custom actions `"<pkg>.action.*"` (manifest and DEX
+keep the original on both sides); `android-app://<pkg>/...` referrer labels
+(`EXTRA_REFERRER_NAME`, informational only — verified at all 14 call sites);
+`market://`/Play URLs; the `package:` query forms and car/Android-Auto package
+allowlists (Lyaq/Lddkk); the assistant feature ids and resource prefixes
+above.
+
+**Expectations after v1.1.3:** the mic path and the settings deep-links get
+valid resolution for the first time. If the mic still misbehaves, the next
+suspect is NOT a string issue but the recognition backend itself (Velvet's
+`GoogleRecognitionService` needs server-side speech; on microG that is a
+platform limitation, same class as the Maps limitation below). The Gemini
+overflow menu items that open in-app sheets are unaffected by all of this —
+only the item handlers that launch intents change behavior.
+
+### F10 — Gemini cold start flashes a white screen with "Google" top-left for under a second (v1.1.2, by design — not a bug)
+
+**Symptom:** opening the Gemini app cold shows a brief blank/white screen with
+the "Google" wordmark upper-left before the Gemini UI loads. Reopening while
+warm is instant; opening the (large) Google app and then Gemini reproduces the
+flash because the eviction makes the next Gemini start cold again.
+
+**Mechanism (verified from both pinned APKs):** the pinned Gemini build
+(1.0.970490183) is a **shell**, not a standalone UI. Its manifest contains no
+chat activity at all — only trampolines (`BardEntryPointActivity`,
+`ErrorActivity`, share targets, widget entries).
+`BardEntryPointActivity.onCreate` looks up the Google app's version
+(`getPackageInfo("com.google.android.googlequicksearchbox")` — rewritten by
+`GEMINI_CROSS_APP_RENAMES` to the patched name), and when the Google app is
+installed and new enough (patched 17.60.15 vc 301810370 passes every minimum:
+`isGoogleAppAboveMinVersionForPixel9` / `...ForAndroid9Devices` /
+`...SupportingShellApp`), it builds
+`Intent(VIEW, "https://bard.google.com/android?source=bardshell")` +
+`setPackage(<patched google app>)` and starts it. The patched Google app's
+manifest alias `MainAssistantDeeplinkAnimated` (target
+`com.google.apps.tiktok.nav.gateway.AnimatedGatewayActivity`, process
+`:search`, `excludeFromRecents`, empty taskAffinity) handles that URL — the
+flash is that gateway activity cold-starting with its splash theme. If AGSA
+were missing or too old, the shell would show `ErrorActivity` (BARD_ACTIVITY_NOT_FOUND /
+UPDATE_AGSA / AGSA_DISABLED) instead of working — i.e. the trampoline IS the
+app's designed flow; on GMS devices nobody notices it because the Google app
+process is always warm.
+
+**No code change.** Removing the cross-app rename for the Google app would
+break the Gemini app entirely (it hard-depends on AGSA); suppressing the
+gateway launch is not possible without breaking the handoff. The flash is
+inherent to Google's shell architecture on a device where the Google app is a
+normal (cold-starting) app. It is cosmetic, sub-second, and only occurs on
+cold starts.
+
+**Consequence worth knowing:** everything the user perceives as "the Gemini
+app" after the flash — chat UI, overflow menus, mic — is rendered by the
+PATCHED GOOGLE APP (the Robin/OPA surfaces in Velvet), not by the Bard shell.
+Feature-level bugs reported against "Gemini" therefore debug as Google-app
+issues (see F9), and the Bard DEX itself only ever runs trampolines.
 
 ## On-device debugging playbook
 
