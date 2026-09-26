@@ -82,22 +82,31 @@ internal object AppCompatibilities {
         targets = listOf(AppTarget("1.26.341.01.90")),
     )
 
-    // Google app (Google Search), added v1.1.0. Pinned to the arm64 base APK
-    // extracted from APKCombo's XAPK bundle (2026-09-26); see the googleapp
-    // Constants.kt for the full provenance, including the minSdk 32 -> 29
-    // install-floor override this patch applies.
+    // Google app (Google Search), added v1.1.0. Repinned in v1.1.1 from the
+    // 17.61.20.ve.arm64 beta to this stable release: 17.60.15.ve.arm64 is the
+    // newest stable build distributed as a STANDALONE installable APK (nodpi,
+    // arm64-v8a + arm-v7a fat build) — verified byte-parity between the
+    // APKMirror and APKPure listings (same versionCode 301810370, same file
+    // size) on 2026-09-26, so users can download the exact verified release
+    // from either mirror. See the googleapp Constants.kt for the full
+    // provenance, including the minSdk 30 -> 29 install-floor override this
+    // patch applies.
     val GOOGLE_APP = Compatibility(
         name = "Google",
         packageName = "com.google.android.googlequicksearchbox",
         appIconColor = 0x4285F4,
-        targets = listOf(AppTarget("17.61.20.ve.arm64")),
+        targets = listOf(AppTarget("17.60.15.ve.arm64")),
     )
 
     // Gemini, added v1.1.0. Pinned to the previous release-channel build
     // (APKCombo, 2026-09-26) because the Sep-8 build raised minSdk to 32
     // (Android 12L), which the reference EMUI device cannot install; this
-    // build declares Android 10 (29). See the gemini Constants.kt for the
-    // full provenance, including the absent shared fingerprints and their
+    // build declares Android 10 (29). Both versions are also listed on
+    // APKMirror, but Gemini is an app-bundle (AAB) app: every variant on
+    // every mirror is a base-APK-plus-splits bundle, never a standalone
+    // APK — patch the base APK inside (it is what the fingerprints were
+    // verified against). See the gemini Constants.kt for the full
+    // provenance, including the absent shared fingerprints and their
     // per-app overrides.
     val GEMINI = Compatibility(
         name = "Gemini",

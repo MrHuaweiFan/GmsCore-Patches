@@ -82,7 +82,7 @@ resolution — confirmed on device.
 | Docs | 1.26.341.02.90 (220701916) | `NewMainProxyActivity` **(alias)** | `Lcom/google/android/apps/docs/editors/homescreen/ProxyLaunchActivity;` (direct `onCreate`) | `24bb24c05e47e0aefa68a58a766179d9b613a600` |
 | Sheets | 1.26.341.01.90 (220702133) | `NewMainProxyActivity` **(alias)** | `Lcom/google/android/apps/docs/editors/homescreen/ProxyLaunchActivity;` (direct `onCreate`) | `24bb24c05e47e0aefa68a58a766179d9b613a600` |
 | Slides | 1.26.341.01.90 (220702177) | `NewMainProxyActivity` **(alias)** | `Lcom/google/android/apps/docs/editors/homescreen/ProxyLaunchActivity;` (direct `onCreate`) | `24bb24c05e47e0aefa68a58a766179d9b613a600` |
-| Google app | 17.61.20.ve.arm64 (301812194) | `SearchActivity` **(alias)** | `Lcom/google/android/apps/search/googleapp/activity/GoogleAppActivity;` (direct `onCreate`) | `38918a453d07199354f8b19af05ec6562ced5788` |
+| Google app | 17.60.15.ve.arm64 (301810370) | `SearchActivity` **(alias)** | `Lcom/google/android/apps/search/googleapp/activity/GoogleAppActivity;` (direct `onCreate`) | `38918a453d07199354f8b19af05ec6562ced5788` |
 | Gemini | 1.0.970490183 (338) | `BardEntryPointActivity` (direct activity) | `Lcom/google/android/apps/bard/shellapp/BardEntryPointActivity;` (direct `onCreate`) | `ec3549d92772531043b2dd2b85cd2469e75730af` |
 
 Key structural facts (all verified from the APKs):
@@ -116,42 +116,55 @@ Key structural facts (all verified from the APKs):
    `trigger_*_char` string resources through `charAt(0)` — this is why Gmail (and only
    Gmail so far) needs shortcut hardening; see failure mode F7.
 
-## The v1.1.0 additions: Google app and Gemini
+## The v1.1.x additions: Google app and Gemini
 
-Added 2026-09-26. Both patches are statically verified against their pinned APKs
-(base APKs extracted from APKCombo XAPK bundles; the Google app's base carries the
-arm64-v8a native libraries itself, so it is self-contained on ARM devices).
-On-device field testing under ReVanced GmsCore is still pending — expect the first
+Added 2026-09-26 (v1.1.0); the Google app pin was replaced in v1.1.1 the same day.
+Both patches are statically verified against their pinned APKs. On-device field
+testing under ReVanced GmsCore is still pending — expect the first
 logs to surface pre-hook GMS binds in the Application classes
 (`VelvetMultiprocessRoot_Application` for the Google app, `Bard_Application` for
 Gemini), which would be handled via `primeMethodFingerprint` / `earlyReturnFingerprints`
 the same way Gmail's were.
 
-**Google app 17.61.20.ve.arm64 (301812194), minSdk 32 → forced to 29.**
+**Google app 17.60.15.ve.arm64 (301810370), minSdk 30 → forced to 29.**
 
+- v1.1.1 repin rationale: 17.61.20.ve.arm64 is a Play **beta-track** build and
+  ships only inside XAPK/APKM bundles; on-device patchers that only accept a
+  plain .apk could not consume it. 17.60.15.ve.arm64 is the newest STABLE
+  release distributed as a standalone installable APK — the "arm64-v8a +
+  arm-v7a" fat nodpi build (236,766,877 bytes, carries both ARM ABIs' native
+  libraries itself, no splits needed). Byte-parity between the APKMirror and
+  APKPure listings was confirmed before pinning (same versionCode 301810370,
+  same file size), so users can download the exact verified release from
+  either mirror.
 - Launcher: `SearchActivity` alias → `GoogleAppActivity`
   (`Lcom/google/android/apps/search/googleapp/activity/GoogleAppActivity;`, direct
-  public final `onCreate(Bundle)V`, 52 instructions, classes.dex).
-- Shared fingerprints both resolve: ServiceCheck `Ldaap;->d(Context;I)V` and
-  GooglePlayUtility `Ldaap;->b(Context;I)I`, both public static in classes2.dex.
+  public final `onCreate(Bundle)V`, classes.dex).
+- Shared fingerprints both resolve: ServiceCheck `Lczey;->d(Context;I)V` and
+  GooglePlayUtility `Lczey;->b(Context;I)I`, both public static in classes2.dex
+  (the v1.1.0 beta pin had both on `Ldaap;` — the obfuscated name moves every
+  release, the shape-based shared fingerprints match both).
 - Self-identity: the exact package string is a string-table entry in 12 of 14 dex
   files → `rewriteSelfPackageNameStrings` (F4 pattern).
-- Authorities: 18 package-scoped provider authorities are renamed by the manifest
-  transform; of those, exactly ONE also appears as a bare DEX string —
+- Authorities: 17 package-scoped provider authorities are renamed by the manifest
+  transform; of those, exactly ONE also appears as a DEX string —
   `com.google.android.googlequicksearchbox.contextmenu.utilities.fileprovider`
-  (a FileProvider.getUriForFile authority argument) — renamed via
-  `GOOGLE_APP_CROSS_APP_RENAMES`. The other 17 are constructed at runtime from
+  (a FileProvider.getUriForFile authority argument; the FULL authority string in
+  this build, the bare suffix in the 17.61.20 beta) — renamed via
+  `GOOGLE_APP_CROSS_APP_RENAMES`. The other 16 are constructed at runtime from
   getPackageName() or resources and follow automatically. Three provider-looking
   strings in the DEX (`NetworkImageLoaderContentProvider`, `CommonContentProvider`,
   `PublicValueProvider`) are NOT declared in the base manifest (split-bound or dead)
   and are deliberately left alone.
 - Cross-app: 8 exact DEX references to the bard package (Gemini handoff), 7 to
   `com.google.android.apps.docs` and 11 to `com.google.android.gm` (suite handoffs)
-  — all renamed via the shared maps.
-- minSdk 32 (Android 12L) is above the reference device's Android base → the
-  resource patch lowers the install floor to 29. This is an install gate change
-  only; if the app calls an API that genuinely needs 30/31/32, that will surface
-  as a runtime crash to be triaged from logs.
+  — all renamed via the shared maps. Identical counts to the 17.61.20 beta.
+- Collision check (F5): zero collisions for all rename targets across the
+  157,824 type descriptors of the 14 dex files.
+- minSdk 30 (Android 11) is above the Android-10 floor the install override
+  targets → the resource patch lowers the install floor to 29. This is an
+  install gate change only; if the app calls an API that genuinely needs 30+,
+  that will surface as a runtime crash to be triaged from logs.
 
 **Gemini 1.0.970490183 (338), minSdk 29 (Android 10).**
 
@@ -503,10 +516,15 @@ analysis re-fetched the same pinned Gmail APK on 2026-09-07). The v1.1.0 additio
 fetched and analyzed on 2026-09-26: Google app 17.61.20.ve.arm64 (base APK extracted
 from the arm64 XAPK bundle; the x86_64 standalone APK offered the same day is a
 different train AND lacks arm64-v8a native libraries, so it is NOT the pin) and Gemini
-1.0.970490183 (base APK extracted from its XAPK). All are signed with APK
-Signature Scheme v2 (v3 also present on the v1.1.0 pair) by a single Google certificate
+1.0.970490183 (base APK extracted from its XAPK). The v1.1.1 repin re-verified the
+Google app against 17.60.15.ve.arm64 (301810370), the stable standalone APK build
+downloaded from APKPure and byte-matched to APKMirror's identical nodpi variant listing
+(same versionCode, same file size, same release); the Gemini pin was re-checked
+unchanged. All are signed with APK
+Signature Scheme v2 (v3 also present on the v1.1.x pair) by a single Google certificate
 (three distinct keys as noted above).
-Google distributes these apps as split bundles; the analysis used the universal/base
+Google distributes these apps as split bundles (with the exception of the Google app's
+standalone fat-APK builds like this pin); the analysis used the universal/base
 APK — the part a patcher consumes and the only part containing the manifest and signing
 block. When patching a device-pulled copy, verify it is the same release channel and a
 version at or near the ones listed — the obfuscated class names change with essentially

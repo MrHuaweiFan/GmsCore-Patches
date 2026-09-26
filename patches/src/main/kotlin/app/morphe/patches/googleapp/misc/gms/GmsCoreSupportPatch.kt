@@ -33,9 +33,10 @@ import app.morphe.patches.shared.misc.settings.preference.PreferenceScreenPrefer
  *     bard package) and the already-patched Drive family + Gmail (7 respective
  *     11 exact references), plus the app's one self FileProvider authority
  *     that the manifest rename would otherwise desync (F5).
- *   - forceMinSdkVersion = 29 lowers the declared Android 12L install floor so
- *     the APK installs on EMUI-class devices; see the resource patch parameter
- *     doc for the trade-off.
+ *   - forceMinSdkVersion = 29 lowers the declared install floor (Android 11
+ *     on the v1.1.1 pin; Android 12L on the v1.1.0 beta pin) so the APK
+ *     installs on EMUI-class devices; see the resource patch parameter doc
+ *     for the trade-off.
  */
 @Suppress("unused")
 val gmsCoreSupportPatch = gmsCoreSupportPatch(

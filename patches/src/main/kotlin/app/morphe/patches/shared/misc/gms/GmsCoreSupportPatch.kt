@@ -131,8 +131,9 @@ internal val DRIVE_SUITE_CONTENT_URI_RENAMES: Map<String, String> = mapOf(
  *
  * Same rules as the Drive suite maps: EXACT whole-string matches only, never
  * dotted children. Verified against the full DEX string census of the pinned
- * APKs (2026-09-26, Google 17.61.20.ve.arm64 / Gemini 1.0.970490183): zero keys
- * collide with defined classes.
+ * APKs (re-verified 2026-09-26 after the v1.1.1 repin, Google
+ * 17.60.15.ve.arm64 / Gemini 1.0.970490183): zero keys collide with defined
+ * classes.
  */
 internal val GOOGLE_APP_CROSS_APP_RENAMES: Map<String, String> = DRIVE_SUITE_CROSS_APP_RENAMES + mapOf(
     // Gemini sibling (Assistant/Gemini handoff, 8 exact DEX references).
@@ -141,7 +142,9 @@ internal val GOOGLE_APP_CROSS_APP_RENAMES: Map<String, String> = DRIVE_SUITE_CRO
     // "app.morphe.android.googlequicksearchbox.contextmenu.utilities.fileprovider",
     // but a DEX constant (FileProvider.getUriForFile's authority argument) still
     // references the original name. It is the ONLY package-scoped manifest
-    // authority of the 18 declared that also appears as a bare DEX string.
+    // authority that also appears as a DEX string (the full authority string in
+    // the 17.60.15 pin, the bare suffix in the 17.61.20 beta; the map key is
+    // the full authority and matched both).
     "com.google.android.googlequicksearchbox.contextmenu.utilities.fileprovider" to
             "app.morphe.android.googlequicksearchbox.contextmenu.utilities.fileprovider",
 )
@@ -250,7 +253,9 @@ internal val GEMINI_CROSS_APP_RENAMES: Map<String, String> = DRIVE_SUITE_CROSS_A
  * @param serviceCheckFingerprint v1.1.0: the GMS availability/error-dialog method to
  * return early. Defaults to the shared [ServiceCheckFingerprint] (public static
  * (L,I)V containing "Google Play Services not available"), which resolves in all
- * six original apps AND the Google app (Ldaap;->d, classes2.dex). Gemini
+ * six original apps AND the Google app (Lczey;->d, classes2.dex, on the v1.1.1
+ * stable pin 17.60.15.ve.arm64; Ldaap;->d on the v1.1.0 beta pin — the shape
+ * matched both). Gemini
  * (com.google.android.apps.bard 1.0.970490183) is the first app whose DEX does NOT
  * contain that shape: its bundled copy of the string lives only in the constructor
  * of an Exception subclass (Lbym;), which is not an availability check and must not
@@ -696,9 +701,10 @@ private val SHORTCUT_CHAR_STRING_VALUES: Map<String, String> = mapOf(
  * to false and is enabled from the Gmail patch only.
  * @param forceMinSdkVersion v1.1.0: opt-in override that rewrites the decoded manifest's
  * android:minSdkVersion to the given value. Needed when a pinned app version declares a higher
- * install floor than the target devices actually run: Google app 17.61.20.ve.arm64 declares
- * android:minSdkVersion="32" (Android 12L) while the reference field-test device (Huawei DBY-W09,
- * EMUI) runs an older Android base, so without the rewrite PackageInstaller rejects the patched
+ * install floor than the target devices actually run: the Google app pins declare
+ * android:minSdkVersion="30" (Android 11, v1.1.1 stable pin) / "32" (Android 12L, v1.1.0 beta
+ * pin) while the reference field-test device (Huawei DBY-W09, EMUI) runs an older Android
+ * base, so without the rewrite PackageInstaller rejects the patched
  * APK with INSTALL_FAILED_OLDER_SDK before anything else can even be tested. This is an install
  * gate change ONLY -- it does not add missing platform APIs. If the app then calls an API that
  * genuinely requires the newer platform level, that is a runtime issue to be diagnosed from

@@ -8,21 +8,24 @@ import app.morphe.patches.googleapp.misc.gms.Constants.GOOGLE_APP_MAIN_ACTIVITY_
  * activity starts, triggering the GmsCore availability check as early as
  * possible.
  *
- * VERIFIED against Google 17.61.20.ve.arm64: the manifest's launchable entry
+ * VERIFIED against Google 17.60.15.ve.arm64 (v1.1.1 pin; the v1.1.0 pin
+ * 17.61.20.ve.arm64 behaved identically): the manifest's launchable entry
  * "com.google.android.googlequicksearchbox.SearchActivity" is an
  * activity-alias; its targetActivity
  * com.google.android.apps.search.googleapp.activity.GoogleAppActivity exists
  * in classes.dex and directly defines a public final
  * onCreate(Landroid/os/Bundle;)V, which is what this fingerprint targets.
- * GoogleAppActivity extends the obfuscated Lcdju; (which also defines an
- * on-Create, but the direct definition wins and keeps the hook on the exact
+ * GoogleAppActivity extends an obfuscated superclass (which also defines an
+ * onCreate, but the direct definition wins and keeps the hook on the exact
  * launcher class).
  *
  * Additional shared-fingerprint verification against the same APK:
- *   - ServiceCheckFingerprint       -> Ldaap;->d(Landroid/content/Context;I)V
+ *   - ServiceCheckFingerprint       -> Lczey;->d(Landroid/content/Context;I)V
  *     [public static], classes2.dex -- resolves.
- *   - GooglePlayUtilityFingerprint  -> Ldaap;->b(Landroid/content/Context;I)I
+ *   - GooglePlayUtilityFingerprint  -> Lczey;->b(Landroid/content/Context;I)I
  *     [public static], classes2.dex -- resolves.
+ * (Both are shape-based shared fingerprints; only the obfuscated class name
+ * differs from the 17.61.20 build, where both lived on Ldaap;.)
  *
  * NOTE: the app's Application class,
  * com.google.android.apps.gsa.binaries.velvet.app.VelvetMultiprocessRoot_Application,
