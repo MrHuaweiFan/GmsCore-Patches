@@ -18,9 +18,9 @@ This is a fork of [De-Vanced](https://github.com/RookieEnough/De-Vanced) focused
 | Gmail | ✅ Launch and account working |
 | Google Drive | ✅ Launch and account working |
 | Google Docs / Sheets / Slides | ✅ Launch and account working; the suite keeps resolving its own apps after the rename |
-| Google Maps | ✅ Launch and account working |
-| Google app (Search) | ✅ Launch and account working; some Assistant/voice features remain limited on GMS-free devices |
-| Gemini | ✅ Launch and account working (the pinned build is a shell over the Google app — see the guide) |
+| Google Maps | ⚠️ Launch and account working, account icon not showing so app settings are innacesible |
+| Google app (Search) | ⚠️ Launch and account working, microphone not working |
+| Gemini | ⚠️ Launch and account working, chat 3 dots button not working |
 
 Patch support is **pinned to the exact app versions listed below** — other versions fail by
 design, because the fingerprints depend on obfuscated class names that change with every
@@ -52,23 +52,21 @@ Each app's patch set in Morphe Manager consists of **GmsCore support** (the main
 **Change package name** helper the engine relies on. Toggling *GmsCore support* pulls in the
 other two automatically.
 
-**Gemini base APK, ready to patch:** Gemini is an app-bundle (AAB) app, so mirrors only
+**Note** Gemini is an app-bundle (AAB) app, so mirrors only
 offer base-APK-plus-splits bundles. The exact verified base APK
 (`com.google.android.apps.bard`, versionCode 338, SHA-256
 `a778f01e46d2beec58bba15cc928661deba078ac67069abd35e64729d6d95b26`) is attached to the
 releases as an asset:
-[Gemini-1.0.970490183-base.apk](https://github.com/MrHuaweiFan/GmsCore-Patches/releases/download/v1.1.2/Gemini-1.0.970490183-base.apk) —
-download it, have Morphe patch THAT file, no XAPK unpacking needed.
+[Gemini-1.0.970490183-base.apk](https://github.com/MrHuaweiFan/GmsCore-Patches/releases/download/v1.1.2/Gemini-1.0.970490183-base.apk)
 
 ## Using the patches
 
 1. Install [ReVanced GmsCore](https://github.com/ReVanced/GmsCore/releases).
-2. Add the Google account inside microG (not inside the patched apps) and enable
+2. Add the Google account inside microG and enable
    *Google device registration* in microG settings.
 3. In Morphe Manager, add this repository as a patch source and patch one of the APK versions
    listed above; Morphe downloads new patch releases from this repo automatically.
-4. Grant the app its permissions before the first launch, then open the patched app
-   (its own icon, its own package name).
+4. If using Drive or Gmail, grant the app its permissions before the first launch, then open the patched app.
 
 ## Building
 
