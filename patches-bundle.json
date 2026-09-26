@@ -1,7 +1,7 @@
 {
-  "created_at": "2026-09-26T19:22:22",
-  "description": "### 🐛 Bug Fixes\n* rewrite stale self-component references after package rename ([4d528a3](https://github.com/MrHuaweiFan/GmsCore-Patches/commit/4d528a3e7129728c91a890e930adf4c8f159c923))",
-  "download_url": "https://github.com/MrHuaweiFan/GmsCore-Patches/releases/download/v1.1.3/patches-1.1.3.mpp",
+  "created_at": "2026-09-26T19:50:00",
+  "description": "### Other Changes\n* Revise app statuses and patch usage instructions ([aa712d0](https://github.com/MrHuaweiFan/GmsCore-Patches/commit/aa712d03b5192287ec32387975196922584ee817))",
+  "download_url": "https://github.com/MrHuaweiFan/GmsCore-Patches/releases/download/v1.1.4/patches-1.1.4.mpp",
   "signature_download_url": "",
-  "version": "1.1.3"
+  "version": "1.1.4"
 }
