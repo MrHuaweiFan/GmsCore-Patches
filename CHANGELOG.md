@@ -1,3 +1,8 @@
+## [1.1.1](https://github.com/MrHuaweiFan/GmsCore-Patches/compare/v1.1.0...v1.1.1) (2026-09-26)
+
+### 🐛 Bug Fixes
+* repin Google app to stable standalone-APK release ([282e479](https://github.com/MrHuaweiFan/GmsCore-Patches/commit/282e4790ac13eb4865054aaacd6f6372b3c47d62))
+
 ## [1.1.0](https://github.com/MrHuaweiFan/GmsCore-Patches/compare/v1.0.7...v1.1.0) (2026-09-26)
 
 ### ✨ New Features

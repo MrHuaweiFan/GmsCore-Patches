@@ -1,6 +1,6 @@
 {
   "NOTE": "Do NOT manually edit this file. This file is automatically updated when semantic release (release.yml) runs. Manually editing this file can break your releases and break third party tools that use this file.",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "patches": [
     {
       "name": "Change package name",
@@ -209,7 +209,7 @@
           "signatures": null,
           "targets": [
             {
-              "version": "17.61.20.ve.arm64",
+              "version": "17.60.15.ve.arm64",
               "versionCodes": null,
               "isExperimental": false,
               "minSdk": null,
