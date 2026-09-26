@@ -1,3 +1,9 @@
+## [1.1.2](https://github.com/MrHuaweiFan/GmsCore-Patches/compare/v1.1.1...v1.1.2) (2026-09-26)
+
+### 🐛 Bug Fixes
+* null-safe register access in process-name hash rewrite ([fd1dab8](https://github.com/MrHuaweiFan/GmsCore-Patches/commit/fd1dab8d20274dbb0dbe7ab9337a4acd37b9ac77))
+* rewrite Velvet process-name DI dispatch after package rename ([700e494](https://github.com/MrHuaweiFan/GmsCore-Patches/commit/700e494efc9d5a697c469d902ad8349c6a0badd6))
+
 ## [1.1.1](https://github.com/MrHuaweiFan/GmsCore-Patches/compare/v1.1.0...v1.1.1) (2026-09-26)
 
 ### 🐛 Bug Fixes

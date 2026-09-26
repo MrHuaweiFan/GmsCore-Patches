@@ -1,7 +1,7 @@
 {
-  "created_at": "2026-09-26T15:55:53",
-  "description": "### 🐛 Bug Fixes\n* repin Google app to stable standalone-APK release ([282e479](https://github.com/MrHuaweiFan/GmsCore-Patches/commit/282e4790ac13eb4865054aaacd6f6372b3c47d62))",
-  "download_url": "https://github.com/MrHuaweiFan/GmsCore-Patches/releases/download/v1.1.1/patches-1.1.1.mpp",
+  "created_at": "2026-09-26T17:45:14",
+  "description": "### 🐛 Bug Fixes\n* null-safe register access in process-name hash rewrite ([fd1dab8](https://github.com/MrHuaweiFan/GmsCore-Patches/commit/fd1dab8d20274dbb0dbe7ab9337a4acd37b9ac77))\n* rewrite Velvet process-name DI dispatch after package rename ([700e494](https://github.com/MrHuaweiFan/GmsCore-Patches/commit/700e494efc9d5a697c469d902ad8349c6a0badd6))",
+  "download_url": "https://github.com/MrHuaweiFan/GmsCore-Patches/releases/download/v1.1.2/patches-1.1.2.mpp",
   "signature_download_url": "",
-  "version": "1.1.1"
+  "version": "1.1.2"
 }
