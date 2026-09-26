@@ -431,7 +431,11 @@ fun gmsCoreSupportPatch(
                             ?: return@forEachIndexed
                         val newHash = hashRenames[oldHash] ?: return@forEachIndexed
 
-                        val register = (instruction as? OneRegisterInstruction).registerA
+                        // CONST/CONST_16/CONST_4 always implement OneRegisterInstruction;
+                        // the elvis is purely for the compiler's null-safety on the as? cast.
+                        val register =
+                            (instruction as? OneRegisterInstruction)?.registerA
+                                ?: return@forEachIndexed
                         mutableMethod.replaceInstruction(index, "const v$register, $newHash")
                     }
                 }
