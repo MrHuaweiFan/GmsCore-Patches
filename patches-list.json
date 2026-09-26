@@ -1,6 +1,6 @@
 {
   "NOTE": "Do NOT manually edit this file. This file is automatically updated when semantic release (release.yml) runs. Manually editing this file can break your releases and break third party tools that use this file.",
-  "version": "1.0.7",
+  "version": "1.1.0",
   "patches": [
     {
       "name": "Change package name",
@@ -111,6 +111,36 @@
       ],
       "compatiblePackages": [
         {
+          "packageName": "com.google.android.apps.bard",
+          "name": "Gemini",
+          "description": null,
+          "apkFileType": null,
+          "appIconColor": "#9B72CB",
+          "signatures": null,
+          "targets": [
+            {
+              "version": "1.0.970490183",
+              "versionCodes": null,
+              "isExperimental": false,
+              "minSdk": null,
+              "description": null
+            }
+          ]
+        }
+      ],
+      "options": []
+    },
+    {
+      "name": "GmsCore support",
+      "description": "Allows the app to work without root by using a different package name when patched using a GmsCore instead of Google Play Services.",
+      "default": true,
+      "dependencies": [
+        "ResourcePatch",
+        "ResourcePatch",
+        "BytecodePatch"
+      ],
+      "compatiblePackages": [
+        {
           "packageName": "com.google.android.gm",
           "name": "Gmail",
           "description": null,
@@ -150,6 +180,36 @@
           "targets": [
             {
               "version": "26.34.04.965633971",
+              "versionCodes": null,
+              "isExperimental": false,
+              "minSdk": null,
+              "description": null
+            }
+          ]
+        }
+      ],
+      "options": []
+    },
+    {
+      "name": "GmsCore support",
+      "description": "Allows the app to work without root by using a different package name when patched using a GmsCore instead of Google Play Services.",
+      "default": true,
+      "dependencies": [
+        "ResourcePatch",
+        "ResourcePatch",
+        "BytecodePatch"
+      ],
+      "compatiblePackages": [
+        {
+          "packageName": "com.google.android.googlequicksearchbox",
+          "name": "Google",
+          "description": null,
+          "apkFileType": null,
+          "appIconColor": "#4285F4",
+          "signatures": null,
+          "targets": [
+            {
+              "version": "17.61.20.ve.arm64",
               "versionCodes": null,
               "isExperimental": false,
               "minSdk": null,

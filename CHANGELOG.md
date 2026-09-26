@@ -1,3 +1,8 @@
+## [1.1.0](https://github.com/MrHuaweiFan/GmsCore-Patches/compare/v1.0.7...v1.1.0) (2026-09-26)
+
+### ✨ New Features
+* Google app and Gemini GmsCore support ([c19cf87](https://github.com/MrHuaweiFan/GmsCore-Patches/commit/c19cf8797b2e1e473d301edb4c70253cddf9cff4))
+
 ## [1.0.7](https://github.com/MrHuaweiFan/GmsCore-Patches/compare/v1.0.6...v1.0.7) (2026-09-07)
 
 ### Other Changes
