@@ -22,19 +22,7 @@ This is a fork of [De-Vanced](https://github.com/RookieEnough/De-Vanced) focused
 | Google app (Search) | ⚠️ Launch and account working, microphone not working |
 | Gemini | ⚠️ Launch and account working, chat 3 dots button not working |
 
-Patch support is **pinned to the exact app versions listed below** — other versions fail by
-design, because the fingerprints depend on obfuscated class names that change with every
-Google release. Version-specific notes, known-issue details, package-name guidance and the
-analysis behind every pin live in
-[GMSCORE_GOOGLE_APPS_GUIDE.md](GMSCORE_GOOGLE_APPS_GUIDE.md).
-
 ## Google apps patches
-
-Each patch applies the same three-part transformation that the Google Photos patch uses:
-the app package is renamed (e.g. `com.google.android.gm` → `app.morphe.android.gm`) so it can
-be installed next to the Play Store original and binds to microG's GmsCore instead of Google's,
-the original Google signing certificate hash is spoofed so signature checks inside the app pass,
-and GmsCore vendor lookups are rewired to the microG package.
 
 | App | Package | Pinned version (versionCode) | Signing key |
 | :--- | :--- | :--- | :--- |
@@ -46,11 +34,6 @@ and GmsCore vendor lookups are rewired to the microG package.
 | Google Slides | `com.google.android.apps.docs.editors.slides` | 1.26.341.01.90 (220702177) | Google LLC (newer) |
 | Google app | `com.google.android.googlequicksearchbox` | 17.60.15.ve.arm64 (301810370) | Google Inc. classic |
 | Gemini | `com.google.android.apps.bard` | 1.0.970490183 (338) | Google Inc. 2024 key (third key) |
-
-Each app's patch set in Morphe Manager consists of **GmsCore support** (the main patch), its
-**Extension** dependency (injects the microG compatibility runtime), and the global
-**Change package name** helper the engine relies on. Toggling *GmsCore support* pulls in the
-other two automatically.
 
 **Note** Gemini is an app-bundle (AAB) app, so mirrors only
 offer base-APK-plus-splits bundles. The exact verified base APK
@@ -76,7 +59,7 @@ in [GMSCORE_GOOGLE_APPS_GUIDE.md](GMSCORE_GOOGLE_APPS_GUIDE.md).
 ## Credits
 
 - **[De-Vanced](https://github.com/RookieEnough/De-Vanced)** — the fork this project builds on,
-  and the Google Photos GmsCore patch these six patches are modeled on.
+  and the Google Photos GmsCore patch these patches are modeled on.
 - **[ReVanced](https://github.com/ReVanced/revanced-patches)** — original patches (GPL v3);
   preserved source notices live in [`archive/`](archive/archive_contents.txt).
 - **[Morphe](https://morphe.software)** — the patcher framework and ecosystem.

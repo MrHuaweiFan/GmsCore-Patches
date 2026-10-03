@@ -137,6 +137,11 @@ These are the constraints behind the "keep the default `app.morphe.*` target
 names" advice; they live here (not in the README) because they are guidance for
 picking/maintaining patches, not for using them:
 
+- In Morphe Manager, each app's patch set consists of **GmsCore support** (the main
+  patch), its **Extension** dependency (injects the microG compatibility runtime), and
+  the global **Change package name** helper the engine relies on. Toggling *GmsCore
+  support* pulls in the other two automatically — users only ever toggle the main
+  patch.
 - The Drive suite is one logical app split across four packages (Drive, Docs,
   Sheets, Slides). Keep the default `app.morphe.*` target package names for all
   four — a custom package name on any suite app desynchronizes the family (file
