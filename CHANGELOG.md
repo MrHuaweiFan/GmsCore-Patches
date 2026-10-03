@@ -1,3 +1,8 @@
+## [1.2.0](https://github.com/MrHuaweiFan/GmsCore-Patches/compare/v1.1.4...v1.2.0) (2026-10-03)
+
+### ✨ New Features
+* add ChatGPT GmsCore support ([c055b11](https://github.com/MrHuaweiFan/GmsCore-Patches/commit/c055b11153d8d7394124e91c621697f0843da6ef))
+
 ## [1.1.4](https://github.com/MrHuaweiFan/GmsCore-Patches/compare/v1.1.3...v1.1.4) (2026-09-26)
 
 ### Other Changes
