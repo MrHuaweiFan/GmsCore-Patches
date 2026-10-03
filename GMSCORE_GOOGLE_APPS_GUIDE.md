@@ -63,6 +63,7 @@ Per-app behavior is selected through these parameters:
 | Component-reference rewrite (v1.1.3) | `rewriteSelfComponentReferenceStrings = true` | **Google app** | Rewrite the ORIGINAL package inside flattened `#Intent;...;end` URIs (the `component=`/`package=` segment values) and in slash-form self ComponentNames `"<fromPkg>/<fully.qualified.Class>"`, so flag-driven self-launches (mic/assistant, settings deep-links, voice-interaction + notification-listener components) still resolve after the rename. See failure mode F9. |
 | Install floor (v1.1.0) | `forceMinSdkVersion = 29` | **Google app** | Rewrites the decoded manifest's `android:minSdkVersion` so the APK installs on devices below the declared minimum. Install gate only — not an API backport. |
 | Shortcut hardening | `hardenShortcutCharStrings = true` | **Gmail** | Inline the hardware-keyboard shortcut trigger characters into the res menu XML files and re-assert their string values. See failure mode F7. |
+| Literal c2dm actions (v1.2.0) | `keepLiteralC2dmIntentActions = true` (resource patch) | **ChatGPT** | In default mode, narrow the manifest-wide `"com.google.android.c2dm"` rewrite to the permission subtree only, so receiver intent-filter actions stay literal — GmsCore broadcasts them literally, so the stock blanket form breaks every push delivery. Permissions still follow the vendor rename (GmsCore defines and holds them). See F11. |
 
 **Bind actions stay LITERAL** (`Constants.ACTIONS` is empty, deliberately — see failure
 mode F1). Accounts are retargeted by rewriting the account-type string `com.google` →
@@ -86,28 +87,34 @@ resolution — confirmed on device.
 | Slides | 1.26.341.01.90 (220702177) | `NewMainProxyActivity` **(alias)** | `Lcom/google/android/apps/docs/editors/homescreen/ProxyLaunchActivity;` (direct `onCreate`) | `24bb24c05e47e0aefa68a58a766179d9b613a600` |
 | Google app | 17.60.15.ve.arm64 (301810370) | `SearchActivity` **(alias)** | `Lcom/google/android/apps/search/googleapp/activity/GoogleAppActivity;` (direct `onCreate`) | `38918a453d07199354f8b19af05ec6562ced5788` |
 | Gemini | 1.0.970490183 (338) | `BardEntryPointActivity` (direct activity) | `Lcom/google/android/apps/bard/shellapp/BardEntryPointActivity;` (direct `onCreate`) | `ec3549d92772531043b2dd2b85cd2469e75730af` |
+| ChatGPT | 1.2026.265 (2626527) | `MainActivity` (direct activity) | `Lcom/openai/chatgpt/MainActivity;` (direct `onCreate`) | `51a2f260766c9c1a83b7dd5b4572040ac23e4aea` |
 
 Key structural facts (all verified from the APKs):
 
-1. **Six of eight launchers are `activity-alias` entries.** The manifest's launchable
+1. **Six of nine launchers are `activity-alias` entries.** The manifest's launchable
    name usually does not exist as a DEX class — the fingerprint must target the alias's
    `android:targetActivity` (or wherever that class's `onCreate` actually lives).
-   Gemini's `BardEntryPointActivity` is one of the two direct launchers (Maps is the
-   other, and Maps' `onCreate` lives on a superclass anyway).
+   Gemini's `BardEntryPointActivity` and ChatGPT's `MainActivity` are two of the three
+   direct launchers (Maps is the other, and Maps' `onCreate` lives on a superclass
+   anyway).
 2. **Maps needs an obfuscated-superclass hook.** `MapsActivity` is a 1-method shell
    whose `onCreate(Bundle)V` is defined on `Lncu;` — an R8 artifact that WILL change
    between versions; re-verify when bumping.
-3. **THREE signing keys are in play.** Gmail/Drive/Maps/Google app use the classic
+3. **FOUR signing keys are in play.** Gmail/Drive/Maps/Google app use the classic
    Google-wide certificate (`38918a…`, CN=Android, O=Google Inc., valid 2008-2036).
    Docs/Sheets/Slides use the newer Google LLC certificate (`24bb24…`, same key as
-   Google Photos). Gemini uses a THIRD key — same subject CN=Android, O=Google Inc.,
-   but issued 2024-01-23 and valid to 2054 (`ec3549…`). Never copy a signature hash
-   between app families.
-4. **The shared engine's fingerprints resolve in seven of the eight APKs.** ServiceCheck
-   was found in every APK except Gemini; the GooglePlayUtility string triple is present
+   Google Photos). Gemini uses a third key — same subject CN=Android, O=Google Inc.,
+   but issued 2024-01-23 and valid to 2054 (`ec3549…`). ChatGPT uses a FOURTH key:
+   the Google Play app-signing certificate (`51a2f2…`, same subject, re-signs every
+   AAB release — an OpenAI upload artifact, not an OpenAI-held key). Never copy a
+   signature hash between app families.
+4. **The shared engine's fingerprints resolve in seven of the nine APKs.** ServiceCheck
+   was found in every APK except Gemini and ChatGPT (both pass
+   `serviceCheckFingerprint = null`); the GooglePlayUtility string triple is present
    in Gmail/Docs/Sheets/Slides and the Google app, absent in Maps (handled gracefully —
-   `methodOrNull`) and absent in the shared SHAPE in Gemini (instance method — handled
-   by the v1.1.0 per-app fingerprint override).
+   `methodOrNull`), absent in the shared SHAPE in Gemini (instance method — handled
+   by the v1.1.0 per-app fingerprint override) and absent in ChatGPT (no availability
+   gate to neuter; the shared default is kept and skipped via `methodOrNull`).
 5. **Gmail's launcher history**: `ConversationListActivityGmail` has been the public
    launcher name since the 2016 Material rewrite, `MailActivityGmail` its real target
    throughout — but the `onCreate` may move, so re-verify on version bumps.
@@ -660,6 +667,129 @@ app" after the flash — chat UI, overflow menus, mic — is rendered by the
 PATCHED GOOGLE APP (the Robin/OPA surfaces in Velvet), not by the Bard shell.
 Feature-level bugs reported against "Gemini" therefore debug as Google-app
 issues (see F9), and the Bard DEX itself only ever runs trampolines.
+
+### F11 — ChatGPT support: design note for the first non-Google app (v1.2.0, pre-field)
+
+ChatGPT (`com.openai.chatgpt`) is the repository's first non-Google app, added at the
+maintainer's request. This note records the full static analysis the patch is built on,
+because unlike the Google apps there is no obfuscation lore to inherit — every decision
+below is derived from the pinned APK itself.
+
+**Pin.** ChatGPT 1.2026.265 (versionCode 2626527), minSdk 29, targetSdk 37. APKCombo
+distributes four XAPK variants for this versionName: 2626541 (163 MB), 2626527 (150 MB),
+2626526 (151 MB) — all three Android 12+ — and 2626527 (105 MB, **Android 10+**). The pin
+targets the Android 10+ build: it is the only one whose minSdk 29 installs on the
+reference EMUI device without any install-floor override, and unlike the Google app it
+needs none. ChatGPT is an AAB app like Gemini (every mirror ships base-APK-plus-splits
+XAPKs); the patch target is the base APK `com.openai.chatgpt.apk` inside, whose own
+manifest carries package com.openai.chatgpt / vc 2626527. Base APK SHA-256:
+`9fbb0843b03998cba7f2e4afb5a0e8a2a47d1cf42675506617cfd51705c9f40f`. Signature: v2+v3,
+single signer `51a2f260766c9c1a83b7dd5b4572040ac23e4aea` — the Google Play app-signing
+certificate (AAB releases are re-signed by Play), the repo's FOURTH key family.
+
+**Why it is a GmsCore patch at all.** The 1.2026.265 census found 90 `Lcom/google/android/gms/;`
+classes and 25 `Lcom/google/firebase/;` classes bundled in the app: firebase-messaging
+(FCM push: `FirebaseMessagingService` + `FirebaseInstanceIdReceiver` on the literal
+`com.google.android.c2dm.intent.*` actions), play-services-auth (RevocationBoundService),
+ML Kit (ocr/face/barcode via `com.google.mlkit` components), play-services-base,
+play billing 8.3.0 metadata, Stripe Google Pay, androidx credentials. On a GMS-free
+device all of these are dead weight; the patch redirects the bind targets to
+`app.revanced.android.gms`, and FCM push is the headline feature this buys.
+
+**Manifest census.** Two self-defined signature permissions
+(`com.openai.chatgpt.permission.GET_AUTH_TOKEN` on the auth-token service,
+`com.openai.chatgpt.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION`), thirteen package-scoped
+provider authorities (androidx-startup, firebaseinitprovider, mlkitinitprovider, stickers,
+files, glyphs, persona.provider, plaid, valdi.clipboard, datadog.rum,
+SentryNdkPreloadProvider, perfs-startup-listener, resources.AndroidContextProvider), the
+c2dm family (`com.google.android.c2dm.permission.RECEIVE` uses-permission;
+`FirebaseInstanceIdReceiver` guarded by `android:permission="…c2dm.permission.SEND"`),
+four auth/deep-link schemes (`com.openai.chatgpt` for Auth0 redirects, `com.openai.chat`,
+`chatgpt`, `link-popup`/`stripesdk` with literal package paths), and Android 12+ App
+Links on the openai.com hosts. No `android:process` attribute anywhere: the app is
+single-process, so `rewriteProcessNameStrings` is a no-op by construction.
+
+**The three-site self-package analysis** (the reason `rewriteSelfPackageNameStrings`
+is FALSE). The exact string `com.openai.chatgpt` appears in exactly three methods of
+the entire 7-dex, 415k-const-string census — all three disassembled:
+
+1. `Lozh0;-><init>` — a client-info data class (fields: versionCode 2626527, package
+   name, versionName "1.2026.265", CES endpoint). The string is a server-facing
+   identifier; the original value matches what OpenAI's backend expects.
+2. `Lpxl;->b(Landroid/content/Context;Ljava/util/Set;)Z` — a signature-integrity gate:
+   `"com.openai.chatgpt".equals(getPackageName())`, and only then (SDK >= 28)
+   `getPackageInfo(getPackageName(), GET_SIGNING_CERTIFICATES)` → signer digest list.
+   After the rename the equality is false and the gate short-circuits — graceful. Had
+   the constant been rewritten, the gate would proceed and read the PATCHER's signing
+   certificate instead — a worse failure mode.
+3. `Lu8v;->a(I)Lonp0;` — the FinanceAccountLinkingFlowComponent builder puts
+   `"androidPackageName": "com.openai.chatgpt"` into a JSON payload for the bank-link
+   flow; the backend validates it against the registered app identity. Rewriting breaks
+   bank linking; leaving it original costs nothing.
+
+Nothing else in the app resolves the app by its own package string (zero
+`content://com.openai.chatgpt` URIs, zero `<pkg>:` process strings, zero `<pkg>/Class`
+slash components, zero `#Intent;` flattened URIs — all census-verified), so the other
+rules of the self-rewrite flag would also be no-ops. **False** is strictly safer.
+
+**Why default identity mode (not Gmail's legacy mode).** The thirteen package-scoped
+authorities exist ONLY in the manifest — zero DEX const-strings and zero resource
+values reference them (full-census + raw `resources.arsc` string-pool scans), and the
+androidx stack resolves them from `Context.getPackageName()` at runtime. Legacy mode
+would keep the manifest original while `getPackageName()` returns the renamed package —
+androidx-startup initializer resolution would desync after the rename. Default mode
+(authorities follow the package) is the only consistent choice, and as a bonus the
+patched app can coexist with a sideloaded original (no authority collision).
+
+**Push design — the new `keepLiteralC2dmIntentActions` flag.** The stock default-mode
+manifest transform rewrites `"com.google.android.c2dm"` wholesale, which renames the
+receiver intent-filter actions to the vendor form. ReVanced GmsCore's
+McsService/PushRegisterService broadcast and serve the c2dm actions LITERALLY (the
+microG ground-truth section; the same fact that drove Gmail's legacy design), so the
+stock form breaks every push delivery for a default-mode app. ChatGPT is the repo's
+first default-mode app whose FCM push must actually arrive, hence the new v1.2.0 engine
+parameter: with the flag set, the manifest c2dm rewrite is narrowed to the PERMISSION
+subtree. Resulting state, all six sides aligned:
+
+- manifest `<uses-permission>` `com.google.android.c2dm.permission.RECEIVE` →
+  `app.revanced.android.c2dm.permission.RECEIVE` (GmsCore defines and grants it);
+- manifest receiver guard `android:permission="…c2dm.permission.SEND"` → vendor form
+  (GmsCore holds it, so it may deliver);
+- manifest intent-filter actions `com.google.android.c2dm.intent.RECEIVE/REGISTER/
+  REGISTRATION` stay LITERAL — matching what McsService broadcasts;
+- DEX `com.google.android.c2dm.permission.SEND` → vendor form (the `PERMISSIONS` set);
+- DEX c2dm intent actions stay literal (the `ACTIONS` set is empty by design);
+- DEX bind targets `com.google.android.gms` / `com.google` exact → vendor form, so the
+  bundled play-services code binds `app.revanced.android.gms` (visible via the injected
+  `<queries>` package entry).
+
+**Cross-app.** The only sibling-package strings in the census are the Gmail package:
+`com.google.android.gm` (two email-integration sites — an installed-email-clients list
+alongside Yahoo/Outlook/Samsung and a domain→app mapping for gmail.com; both degrade
+gracefully when the target is absent). The shared Drive-suite map retargets them to the
+patched Gmail; `com.google.android.gm.lite` is a different package, not patched by this
+repo, and stays literal. No other map key matches the census.
+
+**Honest expectations for on-device testing.**
+
+- Launch, chat, login: login is server-driven (Auth0 redirects fire the untouched
+  `com.openai.chatgpt` scheme filter), so nothing in the auth path is rename-sensitive.
+- Push: needs the microG side too — Android Checkin (device registration) green and
+  the Google account added IN microG, exactly like Gmail. If push does not arrive,
+  check the microG Self-Check screen first; a red item there is never a patch bug.
+- Known limitations, all accepted (they are dead weight on a GMS-free device anyway):
+  Google Pay / Play billing (`BIND_PAYMENTS_CALLBACK_SERVICE` and the finsky binds
+  stay literal, so those services are unbindable); ML Kit dynamite downloads
+  (moduleinstall binds to vendor GmsCore, which serves them literally, but the on-demand
+  modules may not exist microG-side); SDK return-URL filters whose manifest paths are
+  the LITERAL package (`stripesdk://payment_return_url/com.openai.chatgpt`,
+  `link-popup://complete/com.openai.chatgpt`) do not survive the rename — the SDKs
+  build the return URL from `getPackageName()` at runtime, so after the rename those
+  redirects no longer match their filters. Affects Stripe financial-connections and
+  the Persona identity-verification flows only (bank linking / ID checks), not chat,
+  push or login.
+- If push is silent but registration works, the next suspect is the OpenAI backend
+  ignoring the token (server-side gating), not the patch.
 
 ## On-device debugging playbook
 

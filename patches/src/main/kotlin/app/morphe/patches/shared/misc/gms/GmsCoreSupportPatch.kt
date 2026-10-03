@@ -906,6 +906,20 @@ private val SHORTCUT_CHAR_STRING_VALUES: Map<String, String> = mapOf(
  * genuinely requires the newer platform level, that is a runtime issue to be diagnosed from
  * crash logs, not something this rewrite can or should paper over. The rewrite is a defensive
  * no-op when the decoded manifest carries no android:minSdkVersion attribute.
+ * @param keepLiteralC2dmIntentActions v1.2.0: in default mode, narrow the manifest-wide
+ * `"com.google.android.c2dm"` rewrite to the PERMISSION subtree only
+ * (`com.google.android.c2dm.permission.`), so the c2dm INTENT ACTIONS in receiver
+ * intent filters stay literal. ReVanced GmsCore's McsService/PushRegisterService serve
+ * and broadcast the c2dm intent actions LITERALLY (verified against the released
+ * build; see the microG compatibility ground truth in the agent guide), so the
+ * blanket form renames the receiver intent-filter actions to the vendor form and no
+ * push delivery ever matches them. The PERMISSIONS must still follow the rename in
+ * both forms: GmsCore defines them under its vendor package (signature) and grants
+ * them to this app, so the <uses-permission> entries and the receiver guard
+ * attribute must request the vendor form for GmsCore to be allowed to deliver.
+ * Needed by any default-mode app whose Firebase Cloud Messaging push must actually
+ * arrive (first user: ChatGPT). No effect in legacy identity mode, which already
+ * keeps the actions literal by construction.
  * @param executeBlock The additional execution block of the patch.
  * @param block The additional block to build the patch.
  */
@@ -917,6 +931,7 @@ fun gmsCoreSupportResourcePatch(
     keepOriginalPackageScopedNames: Boolean = false,
     hardenShortcutCharStrings: Boolean = false,
     forceMinSdkVersion: Int? = null,
+    keepLiteralC2dmIntentActions: Boolean = false,
     executeBlock: ResourcePatchContext.() -> Unit = {},
     block: ResourcePatchBuilder.() -> Unit = {},
 ) = resourcePatch {
@@ -1012,7 +1027,20 @@ fun gmsCoreSupportResourcePatch(
                     "$fromPackageName.permission.C2D_MESSAGE" to "$packageName.permission.C2D_MESSAGE",
                     "$fromPackageName.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" to
                         "$packageName.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION",
-                    "com.google.android.c2dm" to "$GMS_CORE_VENDOR_GROUP_ID.android.c2dm",
+                    // v1.2.0: with keepLiteralC2dmIntentActions the c2dm rewrite is narrowed
+                    // to the PERMISSION subtree (see the parameter doc). In the stock form it
+                    // also renames the receiver intent-filter actions to the vendor form,
+                    // which GmsCore never broadcasts -- keep the stock behavior for existing
+                    // apps, so this stays a pure opt-in.
+                    (if (keepLiteralC2dmIntentActions) {
+                        "com.google.android.c2dm.permission."
+                    } else {
+                        "com.google.android.c2dm"
+                    }) to (if (keepLiteralC2dmIntentActions) {
+                        "$GMS_CORE_VENDOR_GROUP_ID.android.c2dm.permission."
+                    } else {
+                        "$GMS_CORE_VENDOR_GROUP_ID.android.c2dm"
+                    }),
                     "com.google.android.libraries.photos.api.mars" to
                         "$GMS_CORE_VENDOR_GROUP_ID.android.apps.photos.api.mars",
                     "</queries>" to "<package android:name=\"$GMS_CORE_VENDOR_GROUP_ID.android.gms\"/></queries>",

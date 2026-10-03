@@ -13,6 +13,11 @@ import app.morphe.patcher.patch.Compatibility
 internal object AppCompatibilities {
     // Google apps with GmsCore (microG) support patches.
     //
+    // ChatGPT (com.openai.chatgpt) is the first NON-Google app. It is an AAB
+    // app re-signed by the Google Play app-signing key and bundles real GMS
+    // dependencies (firebase-messaging push, play-services-auth, ML Kit,
+    // play-services-base), so the same GmsCore patch model applies to it.
+    //
     // Launcher activities, signature hashes and fingerprint targets were verified against
     // the EXACT versions pinned below (see each app's Constants.kt for provenance).
     // The fingerprints rely on obfuscated class names (e.g. Maps' superclass
@@ -39,6 +44,12 @@ internal object AppCompatibilities {
     //     on-device testing under ReVanced GmsCore still pending. The Google
     //     app patch lowers its declared minSdkVersion (32) to 29 via
     //     forceMinSdkVersion so it installs on the EMUI reference device.
+    //   - ChatGPT: added v1.2.0, statically verified against the pinned base
+    //     APK (fingerprints, signature hash, full DEX census, three-site
+    //     self-package analysis); on-device testing under ReVanced GmsCore
+    //     pending. Push delivery additionally requires the microG side
+    //     (Android Checkin + FCM registration) — see guide F11 for the
+    //     honest expectations and known limitations.
 
     val GMAIL = Compatibility(
         name = "Gmail",
@@ -113,5 +124,22 @@ internal object AppCompatibilities {
         packageName = "com.google.android.apps.bard",
         appIconColor = 0x9B72CB,
         targets = listOf(AppTarget("1.0.970490183")),
+    )
+
+    // ChatGPT, added v1.2.0 — the first non-Google app. Pinned to the
+    // ANDROID 10+ variant of 1.2026.265 (the 105 MB XAPK, versionCode
+    // 2626527): APKCombo distributes four XAPK variants for this
+    // versionName (the other three require Android 12+); this is the only
+    // one whose minSdk 29 the reference EMUI device installs without an
+    // override. ChatGPT is an app-bundle (AAB) app like Gemini: every
+    // mirror ships base-APK-plus-splits bundles, so patch the base APK
+    // inside (com.openai.chatgpt.apk — the exact verified base APK is
+    // attached to the releases as an asset). The full pin provenance,
+    // census and design rationale live in the guide (F11).
+    val CHATGPT = Compatibility(
+        name = "ChatGPT",
+        packageName = "com.openai.chatgpt",
+        appIconColor = 0x10A37F,
+        targets = listOf(AppTarget("1.2026.265")),
     )
 }

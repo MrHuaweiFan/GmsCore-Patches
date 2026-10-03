@@ -1,13 +1,13 @@
 # GmsCore Patches
 
-**microG / GmsCore support patches for first-party Google apps — for use with [Morphe](https://morphe.software).**
+**microG / GmsCore support patches for Google apps and some other apps — for use with [Morphe](https://morphe.software).**
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![Kotlin](https://img.shields.io/badge/Kotlin-1.9+-7F52FF?style=flat-square&logo=kotlin)](https://kotlinlang.org)
 [![Android](https://img.shields.io/badge/Platform-Android-3DDC84?style=flat-square&logo=android)](https://android.com)
-[![Apps](https://img.shields.io/badge/Google%20Apps-8%20patched-success?style=flat-square)](#google-apps-patches)
+[![Apps](https://img.shields.io/badge/Apps-9%20patched-success?style=flat-square)](#app-patches)
 
-This is a fork of [De-Vanced](https://github.com/RookieEnough/De-Vanced) focused on making various Google apps run against [microG](https://microg.org) instead of Google Play Services.
+This is a fork of [De-Vanced](https://github.com/RookieEnough/De-Vanced) focused on making various Google apps — and some other apps, starting with ChatGPT — run against [microG](https://microg.org) instead of Google Play Services.
 
 ---
 
@@ -21,19 +21,20 @@ This is a fork of [De-Vanced](https://github.com/RookieEnough/De-Vanced) focused
 | Google Maps | ⚠️ Launch and account working, account icon not showing so app settings are innacesible |
 | Google app (Search) | ⚠️ Launch and account working, microphone not working |
 | Gemini | ⚠️ Launch and account working, chat 3 dots button not working |
+| ChatGPT | ⚠️ Statically verified, on-device testing pending |
 
 Patch support is **pinned to the exact app versions listed below** — other versions fail by
 design, because the fingerprints depend on obfuscated class names that change with every
-Google release. Version-specific notes, known-issue details, package-name guidance and the
+app release. Version-specific notes, known-issue details, package-name guidance and the
 analysis behind every pin live in
 [GMSCORE_GOOGLE_APPS_GUIDE.md](GMSCORE_GOOGLE_APPS_GUIDE.md).
 
-## Google apps patches
+## App patches
 
-Each patch applies the same three-part transformation that the Google Photos patch uses:
+Each app applies the same three-part transformation that the Google Photos patch uses:
 the app package is renamed (e.g. `com.google.android.gm` → `app.morphe.android.gm`) so it can
 be installed next to the Play Store original and binds to microG's GmsCore instead of Google's,
-the original Google signing certificate hash is spoofed so signature checks inside the app pass,
+the original signing certificate hash is spoofed so signature checks inside the app pass,
 and GmsCore vendor lookups are rewired to the microG package.
 
 | App | Package | Pinned version (versionCode) | Signing key |
@@ -46,6 +47,7 @@ and GmsCore vendor lookups are rewired to the microG package.
 | Google Slides | `com.google.android.apps.docs.editors.slides` | 1.26.341.01.90 (220702177) | Google LLC (newer) |
 | Google app | `com.google.android.googlequicksearchbox` | 17.60.15.ve.arm64 (301810370) | Google Inc. classic |
 | Gemini | `com.google.android.apps.bard` | 1.0.970490183 (338) | Google Inc. 2024 key (third key) |
+| ChatGPT | `com.openai.chatgpt` | 1.2026.265 (2626527) | Google Play app-signing key |
 
 Each app's patch set in Morphe Manager consists of **GmsCore support** (the main patch), its
 **Extension** dependency (injects the microG compatibility runtime), and the global
@@ -58,6 +60,12 @@ offer base-APK-plus-splits bundles. The exact verified base APK
 `a778f01e46d2beec58bba15cc928661deba078ac67069abd35e64729d6d95b26`) is attached to the
 releases as an asset:
 [Gemini-1.0.970490183-base.apk](https://github.com/MrHuaweiFan/GmsCore-Patches/releases/download/v1.1.2/Gemini-1.0.970490183-base.apk)
+
+**Note** ChatGPT is an app-bundle (AAB) app too, so mirrors only offer XAPK bundles.
+The exact verified base APK (`com.openai.chatgpt`, versionCode 2626527, SHA-256
+`9fbb0843b03998cba7f2e4afb5a0e8a2a47d1cf42675506617cfd51705c9f40f`) is attached to the
+releases as an asset:
+[ChatGPT-1.2026.265-base.apk](https://github.com/MrHuaweiFan/GmsCore-Patches/releases/download/v1.2.0/ChatGPT-1.2026.265-base.apk)
 
 ## Using the patches
 
