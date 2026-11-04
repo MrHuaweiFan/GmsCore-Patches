@@ -321,8 +321,7 @@ Facts proven from the released ReVanced GmsCore APK and microG source (do not re
 ## Failure modes and fixes (field-test history)
 
 Each entry: symptom → root cause → fix → bundle version. Ordered chronologically; all
-were reproduced and verified on-device (Huawei DBY-W09, Android 12 / EMUI, no Google
-services, ReVanced GmsCore unless noted).
+were reproduced and verified on-device (ReVanced GmsCore unless noted).
 
 ### F1 — Gmail stuck on loading, then crash (v1.0.0)
 
