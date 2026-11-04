@@ -1,3 +1,8 @@
+## [1.2.2](https://github.com/MrHuaweiFan/GmsCore-Patches/compare/v1.2.1...v1.2.2) (2026-11-04)
+
+### Other Changes
+* Update section for clarity ([2560ebc](https://github.com/MrHuaweiFan/GmsCore-Patches/commit/2560ebcd82e585f5db95140fa9d6575f10343e8f))
+
 ## [1.2.1](https://github.com/MrHuaweiFan/GmsCore-Patches/compare/v1.2.0...v1.2.1) (2026-10-03)
 
 ### 🐛 Bug Fixes
