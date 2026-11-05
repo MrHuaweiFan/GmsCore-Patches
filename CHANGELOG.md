@@ -1,3 +1,8 @@
+## [1.2.3](https://github.com/MrHuaweiFan/GmsCore-Patches/compare/v1.2.2...v1.2.3) (2026-11-05)
+
+### Other Changes
+* Update README to remove base APK link ([2525549](https://github.com/MrHuaweiFan/GmsCore-Patches/commit/2525549a7a8cae13af00700f0df5faae3890d9ee))
+
 ## [1.2.2](https://github.com/MrHuaweiFan/GmsCore-Patches/compare/v1.2.1...v1.2.2) (2026-11-04)
 
 ### Other Changes

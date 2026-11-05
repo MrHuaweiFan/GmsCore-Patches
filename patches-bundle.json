@@ -1,7 +1,7 @@
 {
-  "created_at": "2026-11-04T22:33:49",
-  "description": "### Other Changes\n* Update section for clarity ([2560ebc](https://github.com/MrHuaweiFan/GmsCore-Patches/commit/2560ebcd82e585f5db95140fa9d6575f10343e8f))",
-  "download_url": "https://github.com/MrHuaweiFan/GmsCore-Patches/releases/download/v1.2.2/patches-1.2.2.mpp",
+  "created_at": "2026-11-05T07:08:23",
+  "description": "### Other Changes\n* Update README to remove base APK link ([2525549](https://github.com/MrHuaweiFan/GmsCore-Patches/commit/2525549a7a8cae13af00700f0df5faae3890d9ee))",
+  "download_url": "https://github.com/MrHuaweiFan/GmsCore-Patches/releases/download/v1.2.3/patches-1.2.3.mpp",
   "signature_download_url": "",
-  "version": "1.2.2"
+  "version": "1.2.3"
 }
