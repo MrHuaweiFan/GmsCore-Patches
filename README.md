@@ -38,9 +38,7 @@ This is a fork of [De-Vanced](https://github.com/RookieEnough/De-Vanced) focused
 **Note** Gemini is an app-bundle (AAB) app, so mirrors only
 offer base-APK-plus-splits bundles. The exact verified base APK
 (`com.google.android.apps.bard`, versionCode 338, SHA-256
-`a778f01e46d2beec58bba15cc928661deba078ac67069abd35e64729d6d95b26`) is attached to the
-releases as an asset:
-[Gemini-1.0.970490183-base.apk](https://github.com/MrHuaweiFan/GmsCore-Patches/releases/download/v1.1.2/Gemini-1.0.970490183-base.apk)
+`a778f01e46d2beec58bba15cc928661deba078ac67069abd35e64729d6d95b26`)
 
 ## Using the patches
 
