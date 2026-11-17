@@ -2,7 +2,7 @@
 
 > **Audience:** this document is the knowledge base for an AI agent (or a new maintainer)
 > building, extending or debugging this repository. It contains everything verified about
-> the six patched apps, the shared patch engine's design modes, the microG compatibility
+> the original eight patched apps, the shared patch engine's design modes, the microG compatibility
 > ground truth, the complete field-test failure history, and the exact build/release
 > procedures. Human-facing overview: [README.md](README.md).
 >
@@ -14,7 +14,7 @@
 
 ```
 patches/src/main/kotlin/app/morphe/
-  patches/{gmail,gdrive,gmaps,gdocs,gsheets,gslides,googleapp,gemini}/
+patches/{gmail,gdrive,gmaps,gdocs,gsheets,gslides,googleapp,gemini,youtubestudio}/
       misc/gms/{Constants.kt, Fingerprints.kt, GmsCoreSupportPatch.kt}   per-app patch
       misc/extension/SharedExtensionPatch.kt                              activity hook
   patches/shared/misc/gms/GmsCoreSupportPatch.kt    the engine (bytecode + resource patch)
@@ -36,10 +36,9 @@ There is exactly ONE extension bundle: `extensions/shared.mpe`, built from
 `extensions/shared/`. It carries the microG runtime (`GmsCoreSupportPatch.java` —
 Gservices availability checks, vendor dialog helpers) that is dexed into every patched
 app. v1.0.6 consolidated the legacy `shared-youtube` module into it: the module was an
-upstream naming artifact (ReVanced shipped its GmsCore runtime in the YouTube extension),
-and YouTube is not one of this repo's patchable apps — no patch in this repo targets it
-and none ever should (the repo's fingerprints and version pins cover the six Google apps
-listed above).
+upstream naming artifact (ReVanced shipped its GmsCore runtime in the YouTube extension).
+The YouTube video app is not a target here; YouTube Studio is a separate app and now has
+its own MicroG patch, pinned independently below.
 
 ## The engine and its operating modes
 
@@ -70,7 +69,7 @@ mode F1). Accounts are retargeted by rewriting the account-type string `com.goog
 
 ## Version pins and verified constants
 
-All six patches pin their verified version in `shared/compat/AppCompatibilities.kt`
+Every app patch pins its verified version in `shared/compat/AppCompatibilities.kt`
 (`targets = listOf(AppTarget("<version>"))`). Pinning is mandatory, not cosmetic: the
 fingerprints depend on obfuscated class names (`Lncu;`, `Labkz;`, …) that change with
 essentially every Google release, so patching an unpinned version fails at fingerprint
@@ -86,6 +85,11 @@ resolution — confirmed on device.
 | Slides | 1.26.341.01.90 (220702177) | `NewMainProxyActivity` **(alias)** | `Lcom/google/android/apps/docs/editors/homescreen/ProxyLaunchActivity;` (direct `onCreate`) | `24bb24c05e47e0aefa68a58a766179d9b613a600` |
 | Google app | 17.60.15.ve.arm64 (301810370) | `SearchActivity` **(alias)** | `Lcom/google/android/apps/search/googleapp/activity/GoogleAppActivity;` (direct `onCreate`) | `38918a453d07199354f8b19af05ec6562ced5788` |
 | Gemini | 1.0.970490183 (338) | `BardEntryPointActivity` (direct activity) | `Lcom/google/android/apps/bard/shellapp/BardEntryPointActivity;` (direct `onCreate`) | `ec3549d92772531043b2dd2b85cd2469e75730af` |
+| YouTube Studio | 26.45.002 (126450027) | `MainActivity` (direct activity) | `Lcom/google/android/apps/youtube/creator/main/MainActivity;` (direct `onCreate`) | `24bb24c05e47e0aefa68a58a766179d9b613a600` (API 32 and lower; rotated signer on API 33+) |
+
+YouTube Studio's version pin and source APK fingerprinting details are in
+[YOUTUBE_STUDIO_GUIDE.md](YOUTUBE_STUDIO_GUIDE.md). The launcher and shared GMS
+fingerprints resolve statically; MicroG account sign-in has not yet been confirmed.
 
 Key structural facts (all verified from the APKs):
 

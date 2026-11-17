@@ -5,7 +5,7 @@
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![Kotlin](https://img.shields.io/badge/Kotlin-1.9+-7F52FF?style=flat-square&logo=kotlin)](https://kotlinlang.org)
 [![Android](https://img.shields.io/badge/Platform-Android-3DDC84?style=flat-square&logo=android)](https://android.com)
-[![Apps](https://img.shields.io/badge/Google%20Apps-8%20patched-success?style=flat-square)](#google-apps-patches)
+[![Apps](https://img.shields.io/badge/Google%20Apps-9%20patched-success?style=flat-square)](#google-apps-patches)
 
 This is a fork of [De-Vanced](https://github.com/RookieEnough/De-Vanced) focused on making various Google apps run against [microG](https://microg.org) instead of Google Play Services.
 
@@ -21,6 +21,7 @@ This is a fork of [De-Vanced](https://github.com/RookieEnough/De-Vanced) focused
 | Google Maps | ⚠️ Launch and account working, account icon not showing so app settings are innacesible |
 | Google app (Search) | ⚠️ Launch and account working, microphone not working |
 | Gemini | ⚠️ Launch and account working, chat 3 dots button not working |
+| YouTube Studio | 🧪 Morphe patch applies to 26.45.002; account sign-in awaits an ARM device check |
 
 ## Google apps patches
 
@@ -34,6 +35,7 @@ This is a fork of [De-Vanced](https://github.com/RookieEnough/De-Vanced) focused
 | Google Slides | `com.google.android.apps.docs.editors.slides` | 1.26.341.01.90 (220702177) | Google LLC (newer) |
 | Google app | `com.google.android.googlequicksearchbox` | 17.60.15.ve.arm64 (301810370) | Google Inc. classic |
 | Gemini | `com.google.android.apps.bard` | 1.0.970490183 (338) | Google Inc. 2024 key (third key) |
+| YouTube Studio | `com.google.android.apps.youtube.creator` | 26.45.002 (126450027) | Google signing lineage (API-specific rotation) |
 
 **Note** Gemini is an app-bundle (AAB) app, so mirrors only
 offer base-APK-plus-splits bundles. The exact verified base APK
@@ -42,12 +44,16 @@ offer base-APK-plus-splits bundles. The exact verified base APK
 
 ## Using the patches
 
-1. Install [ReVanced GmsCore](https://github.com/ReVanced/GmsCore/releases).
-2. Add the Google account inside microG and enable
+1. Install [Morphe MicroG-RE](https://github.com/MorpheApp/MicroG-RE/releases).
+2. Add the Google account inside MicroG-RE and enable
    *Google device registration* in microG settings.
 3. In Morphe Manager, add this repository as a patch source and patch one of the APK versions
    listed above; Morphe downloads new patch releases from this repo automatically.
 4. If using Drive or Gmail, grant the app its permissions before the first launch, then open the patched app.
+
+YouTube Studio is pinned to the verified base APK version in
+[YOUTUBE_STUDIO_GUIDE.md](YOUTUBE_STUDIO_GUIDE.md). Its login flow has not yet been
+confirmed on a device.
 
 ## Building
 

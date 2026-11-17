@@ -114,4 +114,12 @@ internal object AppCompatibilities {
         appIconColor = 0x9B72CB,
         targets = listOf(AppTarget("1.0.970490183")),
     )
+
+    // YouTube Studio, added with the verified 26.45.002 base APK.
+    val YOUTUBE_STUDIO = Compatibility(
+        name = "YouTube Studio",
+        packageName = "com.google.android.apps.youtube.creator",
+        appIconColor = 0xFF0033,
+        targets = listOf(AppTarget("26.45.002")),
+    )
 }

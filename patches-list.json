@@ -279,6 +279,36 @@
         }
       ],
       "options": []
+    },
+    {
+      "name": "GmsCore support",
+      "description": "Allows the app to work without root by using a different package name when patched using a GmsCore instead of Google Play Services.",
+      "default": true,
+      "dependencies": [
+        "ResourcePatch",
+        "ResourcePatch",
+        "BytecodePatch"
+      ],
+      "compatiblePackages": [
+        {
+          "packageName": "com.google.android.apps.youtube.creator",
+          "name": "YouTube Studio",
+          "description": null,
+          "apkFileType": null,
+          "appIconColor": "#FF0033",
+          "signatures": null,
+          "targets": [
+            {
+              "version": "26.45.002",
+              "versionCodes": null,
+              "isExperimental": false,
+              "minSdk": null,
+              "description": null
+            }
+          ]
+        }
+      ],
+      "options": []
     }
   ]
 }
